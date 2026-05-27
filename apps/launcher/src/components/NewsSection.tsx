@@ -14,8 +14,8 @@ export default function NewsSection() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
-        <span className="text-[#ffffff77] font-mono text-[10px] tracking-[0.3em] uppercase">Actualités</span>
-        <div className="flex-1 h-px bg-[#7c3aed22]" />
+        <span className="text-[#ffffff99] font-mono text-[12px] tracking-[0.3em] uppercase">Actualités</span>
+        <div className="flex-1 h-px bg-[#7c3aed40]" />
       </div>
       <div className="grid grid-cols-2 gap-3">
         {news.map((item, i) => (
@@ -25,11 +25,11 @@ export default function NewsSection() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: i * 0.1 }}
             whileHover={{ scale: 1.01, borderColor: '#7c3aed44' }}
-            className="bg-[#1c1c2e] border border-[#ffffff18] rounded-lg p-4 cursor-pointer transition-all"
+            className="bg-[#222240] border border-[#ffffff35] rounded-lg p-4 cursor-pointer transition-all"
           >
             <div className="flex items-center justify-between mb-2">
               <span
-                className="font-mono text-[9px] tracking-widest px-2 py-0.5 rounded"
+                className="font-mono text-[11px] tracking-widest px-2 py-0.5 rounded"
                 style={{
                   color: tagColors[item.tag] ?? '#7c3aed',
                   backgroundColor: (tagColors[item.tag] ?? '#7c3aed') + '22',
@@ -38,7 +38,7 @@ export default function NewsSection() {
               >
                 {item.tag}
               </span>
-              <span className="text-[#ffffff66] font-mono text-[9px]">{item.date}</span>
+              <span className="text-[#ffffff88] font-mono text-[11px]">{item.date}</span>
             </div>
             <p className="font-rajdhani font-semibold text-sm text-white leading-tight">{item.title}</p>
           </motion.div>

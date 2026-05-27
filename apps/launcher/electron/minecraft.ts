@@ -1,6 +1,6 @@
-import { spawn, exec }            from 'child_process'
+import { spawn, exec, execFile }  from 'child_process'
 import { join, delimiter }         from 'path'
-import { mkdir, readFile, access, writeFile, copyFile } from 'fs/promises'
+import { mkdir, readFile, access, writeFile, copyFile, unlink } from 'fs/promises'
 import { createWriteStream }       from 'fs'
 import { promisify }               from 'util'
 import * as https                  from 'https'
@@ -11,7 +11,8 @@ import { app }                     from 'electron'
 const execAsync = promisify(exec)
 
 // ── Configuration ─────────────────────────────────────────────────────────────
-const MC_VERSION = '1.21.1'
+const MC_VERSION      = '1.21.1'
+const FORGE_FALLBACK  = '52.0.47'   // utilisé si l'API promotions est inaccessible
 // ──────────────────────────────────────────────────────────────────────────────
 
 export interface LaunchOptions {
@@ -24,6 +25,7 @@ export interface LaunchOptions {
   onProgress:  (label: string, percent: number) => void
   onLog:       (line: string) => void
   onCrash?:    (error: string) => void
+  onExit?:     () => void
 }
 
 // ── Chemins ───────────────────────────────────────────────────────────────────
@@ -56,7 +58,7 @@ function downloadFile(
   url:         string,
   dest:        string,
   onProgress?: (ratio: number) => void,
-  timeoutMs  = 30_000
+  timeoutMs  = 60_000
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const get = (u: string, redirects = 0) => {
@@ -91,17 +93,15 @@ function downloadFile(
 }
 
 // Convertit une coordonnée Maven en chemin relatif
-// ex: "net.fabricmc:fabric-loader:0.16.5" → "net/fabricmc/fabric-loader/0.16.5/fabric-loader-0.16.5.jar"
 function mavenToPath(name: string): string {
-  const parts   = name.split(':')
-  const group   = parts[0].replace(/\./g, '/')
-  const artifact = parts[1]
-  const version  = parts[2]
+  const parts      = name.split(':')
+  const group      = parts[0].replace(/\./g, '/')
+  const artifact   = parts[1]
+  const version    = parts[2]
   const classifier = parts[3] ? `-${parts[3]}` : ''
   return `${group}/${artifact}/${version}/${artifact}-${version}${classifier}.jar`
 }
 
-// Extrait les .dll/.so/.dylib d'un JAR dans destDir (natives) — async pour ne pas bloquer
 async function extractNatives(jarPath: string, destDir: string): Promise<void> {
   try {
     if (process.platform === 'win32') {
@@ -119,9 +119,7 @@ async function extractNatives(jarPath: string, destDir: string): Promise<void> {
     } else {
       await execAsync(`unzip -o "${jarPath}" "*.so" "*.dylib" -d "${destDir}" 2>/dev/null; true`)
     }
-  } catch {
-    // Ignorer — certains JARs ne contiennent pas de natives
-  }
+  } catch { /* ignorer les JARs sans natives */ }
 }
 
 // ── Métadonnées Mojang ────────────────────────────────────────────────────────
@@ -144,34 +142,133 @@ async function fetchVanillaMeta(): Promise<any> {
   return meta
 }
 
-// ── Métadonnées Fabric ────────────────────────────────────────────────────────
+// ── Métadonnées Forge ─────────────────────────────────────────────────────────
 
-async function fetchFabricLoaderVersion(): Promise<string> {
-  const loaders = await fetch(
-    `https://meta.fabricmc.net/v2/versions/loader/${MC_VERSION}`
-  ).then(r => r.json()) as any[]
-
-  const stable = loaders.find(l => l.loader.stable === true) ?? loaders[0]
-  if (!stable) throw new Error('Aucun loader Fabric stable trouvé pour ' + MC_VERSION)
-  return stable.loader.version as string
-}
-
-async function fetchFabricProfile(loaderVersion: string): Promise<any> {
-  const fabricId   = `fabric-loader-${loaderVersion}-${MC_VERSION}`
-  const cachedPath = join(VERSIONS_DIR, fabricId, `${fabricId}.json`)
-  if (await fileExists(cachedPath)) {
-    return JSON.parse(await readFile(cachedPath, 'utf-8'))
+async function getForgeLatestVersion(): Promise<string> {
+  const cachePath = join(VERSIONS_DIR, `forge-latest-${MC_VERSION}.txt`)
+  if (await fileExists(cachePath)) {
+    return (await readFile(cachePath, 'utf-8')).trim()
   }
-  const profile = await fetch(
-    `https://meta.fabricmc.net/v2/versions/loader/${MC_VERSION}/${loaderVersion}/profile/json`
-  ).then(r => r.json())
+  try {
+    const promos = await fetch(
+      'https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json'
+    ).then(r => r.json()) as { promos: Record<string, string> }
 
-  await ensureDir(join(VERSIONS_DIR, fabricId))
-  await writeFile(cachedPath, JSON.stringify(profile, null, 2))
-  return profile
+    const ver = promos.promos[`${MC_VERSION}-latest`]
+             ?? promos.promos[`${MC_VERSION}-recommended`]
+    if (ver) {
+      await writeFile(cachePath, ver)
+      return ver
+    }
+  } catch { /* API inaccessible */ }
+  return FORGE_FALLBACK
 }
 
-// ── Téléchargement des librairies ─────────────────────────────────────────────
+function forgeId(forgeVer: string): string {
+  return `${MC_VERSION}-forge-${forgeVer}`
+}
+
+async function isForgeInstalled(forgeVer: string): Promise<boolean> {
+  const id = forgeId(forgeVer)
+  return (await fileExists(join(VERSIONS_DIR, id, `${id}.json`)))
+      && (await fileExists(join(VERSIONS_DIR, MC_VERSION, `${MC_VERSION}.jar`)))
+}
+
+async function runForgeInstaller(
+  javaExe:    string,
+  forgeVer:   string,
+  onProgress: (label: string, pct: number) => void,
+  onLog?:     (line: string) => void
+): Promise<void> {
+  const id           = `${MC_VERSION}-${forgeVer}`
+  const installerUrl = `https://maven.minecraftforge.net/net/minecraftforge/forge/${id}/forge-${id}-installer.jar`
+  const installerJar = join(LIBS_DIR, `forge-${id}-installer.jar`)
+
+  await ensureDir(LIBS_DIR)
+
+  if (!await fileExists(installerJar)) {
+    onProgress('Téléchargement de Forge Installer…', 55)
+    await downloadFile(installerUrl, installerJar, (r) =>
+      onProgress('Forge Installer', 55 + r * 4), 120_000
+    )
+  }
+
+  onProgress('Installation de Forge (1–3 min)…', 60)
+
+  // Le Forge installer exige un launcher_profiles.json dans le répertoire cible
+  const profilesPath = join(MC_DIR, 'launcher_profiles.json')
+  if (!await fileExists(profilesPath)) {
+    await writeFile(profilesPath, JSON.stringify({
+      profiles: { '(Default)': { name: '(Default)', type: 'latest-release' } },
+      selectedProfile: '(Default)',
+      authenticationDatabase: {},
+      clientToken: 'shinsei-launcher',
+    }, null, 2))
+  }
+
+  // Utiliser java (pas javaw) pour capturer la sortie du processus installeur
+  const java     = javaExe.replace(/javaw(\.exe)?$/i, (_, ext) => `java${ext ?? ''}`)
+  const javaHome = java.replace(/[/\\]bin[/\\]java(\.exe)?$/i, '')
+
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn(java, [
+      '-Dfile.encoding=UTF-8',
+      '-Dstdout.encoding=UTF-8',
+      '-Dstderr.encoding=UTF-8',
+      '-jar', installerJar, '--installClient', MC_DIR,
+    ], {
+      stdio: 'pipe',
+      cwd:   MC_DIR,
+      env:   { ...process.env, JAVA_HOME: javaHome },
+    })
+
+    const timeout = setTimeout(() => {
+      proc.kill()
+      reject(new Error("Installation de Forge expirée (5 min). Réessaie."))
+    }, 5 * 60 * 1000)
+
+    const allLines: string[] = []
+    let pct = 60
+    const pushLine = (d: Buffer) => {
+      const line = d.toString('utf-8').trim()
+      if (!line) return
+      allLines.push(line)
+      onLog?.(line)
+      onProgress(line.slice(0, 70), Math.min(++pct, 92))
+    }
+    proc.stdout?.on('data', pushLine)
+    proc.stderr?.on('data', pushLine)
+
+    proc.on('error', err => {
+      clearTimeout(timeout)
+      reject(new Error(
+        err.message.includes('ENOENT')
+          ? `Java introuvable : "${java}" — Installe Java 21 ou corrige le chemin dans Paramètres`
+          : `Erreur lancement installeur Forge : ${err.message}`
+      ))
+    })
+    proc.on('close', code => {
+      clearTimeout(timeout)
+      if (code === 0) { resolve(); return }
+      const detail = allLines
+        .filter(l => /error|fail|exception/i.test(l) && !/WindowsPreferences|registr/i.test(l))
+        .slice(-5)
+        .join('\n')
+      reject(new Error(
+        `Forge Installer a échoué (code ${code}).\n` +
+        `Vérifie que Java 21 64-bit est installé et configuré dans Paramètres.` +
+        (detail ? `\n\n${detail}` : '')
+      ))
+    })
+  })
+}
+
+async function loadForgeProfile(forgeVer: string): Promise<any> {
+  const id = forgeId(forgeVer)
+  return JSON.parse(await readFile(join(VERSIONS_DIR, id, `${id}.json`), 'utf-8'))
+}
+
+// ── Librairies ────────────────────────────────────────────────────────────────
 
 function isOSAllowed(lib: any): boolean {
   if (!lib.rules) return true
@@ -179,7 +276,7 @@ function isOSAllowed(lib: any): boolean {
            : process.platform === 'darwin' ? 'osx' : 'linux'
   let allowed = false
   for (const rule of lib.rules) {
-    if (rule.features) continue  // args conditionnels aux features du launcher — ignorer
+    if (rule.features) continue
     if (rule.action === 'allow'    && !rule.os)                return true
     if (rule.action === 'allow'    && rule.os?.name === os)    allowed = true
     if (rule.action === 'disallow' && rule.os?.name === os)    return false
@@ -206,14 +303,10 @@ async function downloadVanillaLibraries(
       onProgress(`Lib ${lib.name.split(':')[1]}`, 12 + (i / allowed.length) * 30)
       await downloadFile(artifact.url, libPath)
     }
-
-    // Tout va dans le classpath — les JARs natifs LWJGL 3 s'auto-extraient
-    // via -Dorg.lwjgl.system.SharedLibraryExtractPath (déjà dans le manifest)
     classpath.push(libPath)
 
-    // Ancien format classifiers (LWJGL 2 / très anciennes versions)
-    const osName  = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'osx' : 'linux'
-    const natKey  = lib.natives?.[osName]?.replace('${arch}', process.arch === 'x64' ? '64' : '32')
+    const osName = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'osx' : 'linux'
+    const natKey = lib.natives?.[osName]?.replace('${arch}', process.arch === 'x64' ? '64' : '32')
     if (natKey && lib.downloads?.classifiers?.[natKey]) {
       const nat     = lib.downloads.classifiers[natKey]
       const natPath = join(LIBS_DIR, nat.path)
@@ -225,29 +318,50 @@ async function downloadVanillaLibraries(
   return classpath
 }
 
-async function downloadFabricLibraries(
+async function downloadForgeLibraries(
   libs:      any[],
   onProgress: (label: string, pct: number) => void
 ): Promise<string[]> {
   const classpath: string[] = []
+  const FORGE_MAVEN = 'https://maven.minecraftforge.net'
+  const CENTRAL     = 'https://repo1.maven.org/maven2'
 
   for (let i = 0; i < libs.length; i++) {
-    const lib  = libs[i]
-    const name = lib.name as string
-    const rel  = lib.url
-      ? mavenToPath(name)
-      : mavenToPath(name)
+    const lib = libs[i]
+    if (!isOSAllowed(lib)) continue
 
+    // Priorité : downloads.artifact (URL directe fournie par le profil)
+    const artifact = lib.downloads?.artifact
+    if (artifact?.path) {
+      const libPath = join(LIBS_DIR, artifact.path)
+      await ensureDir(join(libPath, '..'))
+      if (!await fileExists(libPath) && artifact.url) {
+        onProgress(`Forge: ${lib.name?.split(':')[1] ?? artifact.path}`, 65 + (i / libs.length) * 20)
+        await downloadFile(artifact.url, libPath)
+      }
+      if (await fileExists(libPath)) classpath.push(libPath)
+      continue
+    }
+
+    // Fallback : construire depuis le nom Maven
+    if (!lib.name) continue
+    const rel     = mavenToPath(lib.name)
     const libPath = join(LIBS_DIR, rel)
     await ensureDir(join(libPath, '..'))
 
     if (!await fileExists(libPath)) {
-      const baseUrl = (lib.url ?? 'https://repo1.maven.org/maven2/').replace(/\/$/, '')
-      const url     = `${baseUrl}/${rel}`
-      onProgress(`Fabric: ${name.split(':')[1]}`, 55 + (i / libs.length) * 10)
-      await downloadFile(url, libPath)
+      onProgress(`Forge: ${lib.name.split(':')[1]}`, 65 + (i / libs.length) * 20)
+      // Essayer Forge Maven puis Maven Central
+      const baseUrl = lib.url?.replace(/\/$/, '') ?? FORGE_MAVEN
+      try {
+        await downloadFile(`${baseUrl}/${rel}`, libPath)
+      } catch {
+        try {
+          await downloadFile(`${CENTRAL}/${rel}`, libPath)
+        } catch { /* lib introuvable — non bloquant */ }
+      }
     }
-    classpath.push(libPath)
+    if (await fileExists(libPath)) classpath.push(libPath)
   }
   return classpath
 }
@@ -272,7 +386,7 @@ async function downloadAssets(
   const index   = JSON.parse(await readFile(indexFile, 'utf-8'))
   const entries = Object.values(index.objects) as { hash: string }[]
   let done = 0
-  const BATCH = 10  // téléchargements parallèles
+  const BATCH = 10
 
   for (let i = 0; i < entries.length; i += BATCH) {
     const batch = entries.slice(i, i + BATCH)
@@ -288,28 +402,11 @@ async function downloadAssets(
       }
       done++
     }))
-    onProgress(
-      `Assets ${done}/${entries.length}`,
-      44 + (done / entries.length) * 10
-    )
+    onProgress(`Assets ${done}/${entries.length}`, 44 + (done / entries.length) * 10)
   }
 }
 
-// ── Vérification installation Fabric ─────────────────────────────────────────
-
-export async function isFabricInstalled(): Promise<boolean> {
-  try {
-    const loaderVersion = await fetchFabricLoaderVersion()
-    const fabricId      = `fabric-loader-${loaderVersion}-${MC_VERSION}`
-    const profilePath   = join(VERSIONS_DIR, fabricId, `${fabricId}.json`)
-    const clientJar     = join(VERSIONS_DIR, MC_VERSION, `${MC_VERSION}.jar`)
-    return (await fileExists(profilePath)) && (await fileExists(clientJar))
-  } catch {
-    return false
-  }
-}
-
-// ── Déploiement de l'écran de chargement custom ───────────────────────────────
+// ── Écran de chargement custom ────────────────────────────────────────────────
 
 async function deployLoadingScreenConfig(): Promise<void> {
   const configDir      = join(MC_DIR, 'config')
@@ -321,14 +418,15 @@ async function deployLoadingScreenConfig(): Promise<void> {
   await ensureDir(fancyCustomDir)
   await ensureDir(drippyDir)
 
-  // Copier loading.png depuis les ressources du launcher
   const srcPng  = join(app.getAppPath(), 'src', 'img', 'loading', 'loading.png')
   const destPng = join(fancyAssetsDir, 'loading.png')
   if (await fileExists(srcPng)) {
     await copyFile(srcPng, destPng)
+    // Chemin stable pour le Java agent (hors de fancymenu)
+    const agentPng = join(MC_DIR, 'shinsei-loading.png')
+    if (!await fileExists(agentPng)) await copyFile(srcPng, agentPng)
   }
 
-  // Chemins absolus normalisés pour drippyloadingscreen
   const bgPath      = destPng.replace(/\\/g, '/')
   const barCyanPath = join(fancyAssetsDir, 'bar_cyan.png').replace(/\\/g, '/')
   const barDarkPath = join(fancyAssetsDir, 'bar_dark.png').replace(/\\/g, '/')
@@ -378,47 +476,185 @@ I:early_loading_window_width = '-1';
 I:early_loading_logo_position_offset_y = '-50';
 B:early_loading_hide_bar = 'false';
 I:early_loading_logo_position_offset_x = '0';`)
-
-  await writeFile(join(fancyCustomDir, 'shinsei_loading.txt'),
-`type=fancymenu_layout
-
-meta{
-screen=de.keksuccino.drippyloadingscreen.customization.DrippyOverlayScreen
-name=shinsei_loading
-is_enabled=enabled
-last_edited_time=0
 }
 
-menu_background{
-background_type=fancymenu.backgrounds.image
-image_path=fancymenu/assets/loading.png
+// ── Compilation du Java agent (une seule fois) ────────────────────────────────
+
+const AGENT_VERSION = '8' // incrémenter à chaque modification de ShinseiBootAgent.java
+const MOD_VERSION   = '10' // incrémenter à chaque modification de ShinseiMenuMod.java
+
+async function buildBootAgent(javaExe: string): Promise<void> {
+  const agentJar  = join(MC_DIR, 'shinsei-boot.jar')
+  const verFile   = join(MC_DIR, 'shinsei-boot.ver')
+  const curVer    = await fileExists(verFile) ? (await readFile(verFile, 'utf-8')).trim() : ''
+
+  // Recompiler uniquement si la version a changé
+  if (await fileExists(agentJar) && curVer === AGENT_VERSION) return
+
+  const srcFile = join(app.getAppPath(), 'resources', 'shinsei-agent', 'ShinseiBootAgent.java')
+  if (!await fileExists(srcFile)) return
+
+  const binDir = javaExe.replace(/[^/\\]+$/, '')
+  const ext    = process.platform === 'win32' ? '.exe' : ''
+  const javac  = binDir + 'javac' + ext
+  const jarCmd = binDir + 'jar'   + ext
+  if (!await fileExists(javac)) return
+
+  const tmpDir   = join(MC_DIR, '_agent_build')
+  const classDir = join(tmpDir, 'classes')
+  const manifest = join(tmpDir, 'MANIFEST.MF')
+
+  try {
+    await ensureDir(classDir)
+    await writeFile(manifest, 'Premain-Class: ShinseiBootAgent\nCan-Retransform-Classes: true\n')
+    await execAsync(`"${javac}" --release 11 -d "${classDir}" "${srcFile}"`)
+    await execAsync(`"${jarCmd}" cfm "${agentJar}" "${manifest}" -C "${classDir}" .`)
+    await writeFile(verFile, AGENT_VERSION)
+  } catch { /* agent optionnel — ne bloque pas le lancement */ } finally {
+    try {
+      await execAsync(process.platform === 'win32'
+        ? `rmdir /s /q "${tmpDir}"` : `rm -rf "${tmpDir}"`)
+    } catch { /* ignore */ }
+  }
 }
 
-element{
-element_type=drippy_vanilla_bar
-identifier=loading_bar
-anchor=bot_left
-posx=0
-posy=-22
-width=3840
-height=5
-color=#ff00ffff
-layer=1
+// ── Mod menu personnalisé ─────────────────────────────────────────────────────
+
+async function buildMenuMod(
+  javaExe:  string,
+  classpath: string[],
+  onLog:    (line: string) => void
+): Promise<void> {
+  const modJar  = join(MC_DIR, 'shinsei-menu.jar')
+  const verFile = join(MC_DIR, 'shinsei-menu.ver')
+  const curVer  = await fileExists(verFile) ? (await readFile(verFile, 'utf-8')).trim() : ''
+
+  if (await fileExists(modJar) && curVer === MOD_VERSION) {
+    onLog('[mod] shinsei-menu.jar à jour, pas de recompilation.')
+    return
+  }
+
+  const srcFile = join(app.getAppPath(), 'resources', 'shinsei-mod', 'ShinseiMenuMod.java')
+  const tomlSrc = join(app.getAppPath(), 'resources', 'shinsei-mod', 'mods.toml')
+  if (!await fileExists(srcFile)) {
+    onLog(`[mod] Source introuvable : ${srcFile}`)
+    return
+  }
+
+  const binDir = javaExe.replace(/[^/\\]+$/, '')
+  const ext    = process.platform === 'win32' ? '.exe' : ''
+  const javac  = binDir + 'javac' + ext
+  const jarCmd = binDir + 'jar'   + ext
+  if (!await fileExists(javac)) {
+    onLog(`[mod] javac introuvable : ${javac}`)
+    return
+  }
+
+  onLog('[mod] Compilation de ShinseiMenuMod…')
+
+  const execFileAsync = promisify(execFile)
+
+  const tmpDir   = join(MC_DIR, '_mod_build')
+  const classDir = join(tmpDir, 'classes')
+  const metaDir  = join(classDir, 'META-INF')
+  const manifest = join(tmpDir, 'MANIFEST.MF')
+
+  try {
+    await ensureDir(classDir)
+    await ensureDir(metaDir)
+    await writeFile(manifest, 'Manifest-Version: 1.0\n')
+    if (await fileExists(tomlSrc)) await copyFile(tomlSrc, join(metaDir, 'mods.toml'))
+    const packMeta = join(app.getAppPath(), 'resources', 'shinsei-mod', 'pack.mcmeta')
+    if (await fileExists(packMeta)) await copyFile(packMeta, join(classDir, 'pack.mcmeta'))
+
+    // execFile bypasse cmd.exe (limite 8K) → pas de problème de longueur de ligne
+    const cp = classpath.join(delimiter)
+    const { stderr: javacErr } = await execFileAsync(javac, [
+      '--release', '17', '-cp', cp, '-d', classDir, srcFile
+    ])
+    if (javacErr) onLog(`[mod] javac: ${javacErr.trim()}`)
+
+    const { stderr: jarErr } = await execFileAsync(jarCmd, [
+      'cfm', modJar, manifest, '-C', classDir, '.'
+    ])
+    if (jarErr) onLog(`[mod] jar: ${jarErr.trim()}`)
+
+    await writeFile(verFile, MOD_VERSION)
+    onLog('[mod] shinsei-menu.jar compilé avec succès.')
+  } catch (err: any) {
+    onLog(`⚠️ [mod] Build échoué : ${err.stderr?.trim() || err.message || err}`)
+  } finally {
+    try {
+      await execAsync(process.platform === 'win32'
+        ? `rmdir /s /q "${tmpDir}"` : `rm -rf "${tmpDir}"`)
+    } catch { /* ignore */ }
+  }
 }
 
-element{
-element_type=text_v2
-identifier=loading_label
-anchor=bot_center
-posx=-100
-posy=-32
-width=200
-height=14
-text=CHARGEMENT...
-color=#ffffffff
-shadow=false
-layer=2
-}`)
+async function deployMenuAssets(onLog: (line: string) => void): Promise<void> {
+  const modsDir = join(MC_DIR, 'mods')
+  await ensureDir(modsDir)
+
+  const builtJar = join(MC_DIR, 'shinsei-menu.jar')
+  if (await fileExists(builtJar)) {
+    await copyFile(builtJar, join(modsDir, 'shinsei-menu.jar'))
+    onLog(`[mod] Déployé → ${join(modsDir, 'shinsei-menu.jar')}`)
+  } else {
+    onLog('[mod] Pas de JAR à déployer (build échoué ?).')
+  }
+
+  const srcIngame = join(app.getAppPath(), 'src', 'img', 'loading', 'ingame.png')
+  if (await fileExists(srcIngame)) {
+    await copyFile(srcIngame, join(MC_DIR, 'shinsei-ingame.png'))
+  }
+}
+
+// ── Vérification Forge ────────────────────────────────────────────────────────
+
+export async function isForgeReady(): Promise<boolean> {
+  const ver = await getForgeLatestVersion()
+  return isForgeInstalled(ver)
+}
+
+// ── Masquer la fenêtre du jeu jusqu'à la fin de l'écran personnalisé ─────────
+
+async function manageGameWindow(pid: number, flagPath: string): Promise<void> {
+  if (process.platform !== 'win32') return
+
+  const typeDef = `try { Add-Type -TypeDefinition @"
+using System.Runtime.InteropServices;
+public class WH { [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c); }
+"@ } catch {}`
+
+  const makeCmd = (show: number, failOnNoWindow: boolean) => {
+    const s = `${typeDef}
+$p = Get-Process -Id ${pid} -ErrorAction SilentlyContinue
+if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) {
+  try { [WH]::ShowWindow($p.MainWindowHandle, ${show}) | Out-Null } catch { exit 1 }
+}${failOnNoWindow ? ' else { exit 1 }' : ''}`
+    return `powershell -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand ${
+      Buffer.from(s, 'utf16le').toString('base64')}`
+  }
+
+  // Phase 1 — cacher la fenêtre dès qu'elle apparaît (max 15 s)
+  const hideCmd = makeCmd(0, true)
+  let hidden = false
+  for (let i = 0; i < 30 && !hidden; i++) {
+    await new Promise<void>(r => setTimeout(r, 500))
+    try { await execAsync(hideCmd); hidden = true } catch { /* fenêtre pas encore prête */ }
+  }
+  if (!hidden) return
+
+  // Phase 2 — attendre le signal du Java agent (flag file), puis révéler la fenêtre
+  const showCmd = makeCmd(9, false)
+  for (let i = 0; i < 360; i++) {
+    await new Promise<void>(r => setTimeout(r, 1000))
+    if (await fileExists(flagPath)) {
+      await unlink(flagPath).catch(() => {})
+      try { await execAsync(showCmd) } catch { /* ignore */ }
+      return
+    }
+  }
 }
 
 // ── Lancement ─────────────────────────────────────────────────────────────────
@@ -426,12 +662,26 @@ layer=2
 export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   const { onProgress, onLog } = opts
 
-  // Préparer les dossiers
   await ensureDir(MC_DIR)
   await ensureDir(VERSIONS_DIR)
   await ensureDir(LIBS_DIR)
   await ensureDir(ASSETS_DIR)
 
+  // ── Résolution du chemin Java (tôt, nécessaire pour l'installer) ──
+  let java = opts.javaPath?.trim() || (process.platform === 'win32' ? 'javaw' : 'java')
+
+  if (process.platform === 'win32' && /java\.exe$/i.test(java)) {
+    const javaw = java.replace(/java\.exe$/i, 'javaw.exe')
+    if (await fileExists(javaw)) java = javaw
+  }
+
+  const isAbsolute = java.includes('\\') || java.includes('/')
+  if (isAbsolute && !await fileExists(java)) {
+    onLog(`⚠️  Java non trouvé à "${java}", bascule sur javaw du PATH…`)
+    java = process.platform === 'win32' ? 'javaw' : 'java'
+  }
+
+  // ── Métadonnées Mojang ──
   onProgress('Récupération des métadonnées Mojang…', 2)
   const vanillaMeta = await fetchVanillaMeta()
 
@@ -451,28 +701,33 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   onProgress('Vérification des librairies vanilla…', 12)
   const nativesDir = join(VERSIONS_DIR, MC_VERSION, 'natives')
   await ensureDir(nativesDir)
-
   const vanillaClasspath = await downloadVanillaLibraries(vanillaMeta.libraries, onProgress)
 
   // ── Assets ──
   onProgress('Vérification des assets…', 43)
   await downloadAssets(vanillaMeta, onProgress)
 
-  // ── Fabric ──
-  onProgress('Récupération du Fabric Loader…', 54)
-  const loaderVersion  = await fetchFabricLoaderVersion()
-  const fabricProfile  = await fetchFabricProfile(loaderVersion)
-  const fabricVersionId = fabricProfile.id as string
+  // ── Forge ──
+  onProgress('Vérification de Forge…', 54)
+  const forgeVer = await getForgeLatestVersion()
 
-  onProgress('Téléchargement des librairies Fabric…', 55)
-  const fabricClasspath = await downloadFabricLibraries(
-    fabricProfile.libraries ?? [], onProgress
-  )
+  if (!await isForgeInstalled(forgeVer)) {
+    await runForgeInstaller(java, forgeVer, onProgress, onLog)
+  }
+
+  onProgress('Chargement du profil Forge…', 93)
+  const forgeProfile = await loadForgeProfile(forgeVer)
+  const fId = forgeId(forgeVer)
+
+  // ── Librairies Forge manquantes (l'installer en télécharge la plupart) ──
+  onProgress('Vérification des librairies Forge…', 94)
+  const forgeClasspath = await downloadForgeLibraries(forgeProfile.libraries ?? [], onProgress)
 
   // ── Construction du classpath ──
-  // Fabric en tête, puis vanilla, puis client JAR en dernier
+  // Pour Forge 1.21.1 : vanillaLibs + forgeLibs + clientJar
+  // Les JARs Forge spécifiques (bootstraplauncher, securejarhandler) sont dans forgeClasspath
   const classpath = [
-    ...fabricClasspath,
+    ...forgeClasspath,
     ...vanillaClasspath,
     clientJar,
   ]
@@ -480,22 +735,24 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   // ── Résolution des variables ${placeholder} ──
   const cpString = classpath.join(delimiter)
   const vars: Record<string, string> = {
-    auth_player_name:  opts.username,
-    version_name:      fabricVersionId,
-    game_directory:    GAME_DIR,
-    assets_root:       ASSETS_DIR,
-    assets_index_name: vanillaMeta.assetIndex.id,
-    auth_uuid:         opts.uuid,
-    auth_access_token: opts.accessToken,
-    auth_xuid:         '',
-    clientid:          '',
-    user_type:         'msa',
-    version_type:      'release',
-    natives_directory: nativesDir,
-    launcher_name:     'shinsei-launcher',
-    launcher_version:  '1.0.0',
-    classpath:         cpString,
-    game_assets:       ASSETS_DIR,
+    auth_player_name:    opts.username,
+    version_name:        fId,
+    game_directory:      GAME_DIR,
+    assets_root:         ASSETS_DIR,
+    assets_index_name:   vanillaMeta.assetIndex.id,
+    auth_uuid:           opts.uuid,
+    auth_access_token:   opts.accessToken,
+    auth_xuid:           '',
+    clientid:            '',
+    user_type:           'msa',
+    version_type:        'release',
+    natives_directory:   nativesDir,
+    launcher_name:       'shinsei-launcher',
+    launcher_version:    '1.0.0',
+    classpath:           cpString,
+    game_assets:         ASSETS_DIR,
+    library_directory:   LIBS_DIR,
+    classpath_separator: delimiter,
   }
   const resolve = (s: string) => s.replace(/\$\{(\w+)\}/g, (_, k) => vars[k] ?? '')
 
@@ -507,49 +764,42 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
       } else if (arg.rules && isOSAllowed({ rules: arg.rules })) {
         const vals = Array.isArray(arg.value) ? arg.value : [arg.value]
         result.push(...vals.map(resolve))
+      } else if (!arg.rules && arg.value) {
+        const vals = Array.isArray(arg.value) ? arg.value : [arg.value]
+        result.push(...vals.map(resolve))
       }
     }
     return result
   }
 
-  // ── Agent Shinsei Boot Screen (optionnel) ──
-  const agentJar     = join(MC_DIR, 'shinsei-boot.jar')
-  const loadingPng   = join(MC_DIR, 'config', 'fancymenu', 'assets', 'loading.png').replace(/\\/g, '/')
-  const agentArgStr  = `${loadingPng}|${opts.resolution ?? '1280x720'}|${opts.username}|${MC_VERSION}`
-  const agentArgs    = await fileExists(agentJar) ? [`-javaagent:${agentJar}=${agentArgStr}`] : []
+  // ── Mod menu personnalisé ──
+  onProgress('Préparation du menu personnalisé…', 95)
+  await buildMenuMod(java, classpath, onLog)
+  await deployMenuAssets(onLog)
+
+  // ── Agent Shinsei Boot Screen ──
+  await buildBootAgent(java)
+  const agentJar    = join(MC_DIR, 'shinsei-boot.jar')
+  const loadingPng  = join(MC_DIR, 'shinsei-loading.png').replace(/\\/g, '/')
+  const agentArgStr = `${loadingPng}|${opts.resolution ?? '1280x720'}|${opts.username}|${MC_VERSION}`
+  const agentArgs   = await fileExists(agentJar) ? [`-javaagent:${agentJar}=${agentArgStr}`] : []
 
   // ── Arguments JVM ──
+  // Fusionner les args vanilla + Forge (Forge hérite de vanilla via "inheritsFrom")
   const jvmArgs: string[] = [
     ...agentArgs,
     `-Xmx${opts.ramGb}G`,
     `-Xms1G`,
-    `-Dfabric.gameJarPath=${clientJar}`,
     ...parseArgs(vanillaMeta.arguments?.jvm ?? []),
-    ...parseArgs(fabricProfile.arguments?.jvm ?? []),
-    fabricProfile.mainClass ?? vanillaMeta.mainClass,
+    ...parseArgs(forgeProfile.arguments?.jvm ?? []),
+    forgeProfile.mainClass ?? vanillaMeta.mainClass,
   ]
 
   // ── Arguments du jeu ──
   const gameArgs: string[] = [
     ...parseArgs(vanillaMeta.arguments?.game ?? []),
-    ...parseArgs(fabricProfile.arguments?.game ?? []),
+    ...parseArgs(forgeProfile.arguments?.game ?? []),
   ]
-
-  // ── Résolution du chemin Java ──
-  let java = opts.javaPath?.trim() || (process.platform === 'win32' ? 'javaw' : 'java')
-
-  // Sur Windows, préférer javaw.exe (pas de fenêtre CMD) si le chemin pointe sur java.exe
-  if (process.platform === 'win32' && /java\.exe$/i.test(java)) {
-    const javaw = java.replace(/java\.exe$/i, 'javaw.exe')
-    if (await fileExists(javaw)) java = javaw
-  }
-
-  // Vérifier que l'exécutable existe (chemins absolus seulement)
-  const isAbsolute = java.includes('\\') || java.includes('/')
-  if (isAbsolute && !await fileExists(java)) {
-    onLog(`⚠️  Java non trouvé à "${java}", bascule sur javaw du PATH…`)
-    java = process.platform === 'win32' ? 'javaw' : 'java'
-  }
 
   // ── Log fichier ──
   const logPath = join(MC_DIR, 'game_launch.log')
@@ -558,38 +808,43 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
 
   logAll(`=== SHINSEI LAUNCHER ${new Date().toISOString()} ===`)
   logAll(`Java     : ${java}`)
-  logAll(`Version  : Minecraft ${MC_VERSION} + Fabric ${loaderVersion}`)
+  logAll(`Version  : Minecraft ${MC_VERSION} + Forge ${forgeVer}`)
   logAll(`Dir      : ${GAME_DIR}`)
   logAll(`CP count : ${classpath.length}`)
-  logAll(`Main     : ${fabricProfile.mainClass ?? vanillaMeta.mainClass}`)
+  logAll(`Main     : ${forgeProfile.mainClass ?? vanillaMeta.mainClass}`)
   logAll(`JVM args (${jvmArgs.length}):`)
   jvmArgs.forEach((a, i) => logAll(`  [${i}] ${a}`))
   logAll(`Game args (${gameArgs.length}):`)
   gameArgs.forEach((a, i) => logAll(`  [${i}] ${a}`))
   logAll('=== OUTPUT ===')
 
-  onProgress('Déploiement de l\'écran de chargement…', 97)
+  onProgress("Déploiement de l'écran de chargement…", 97)
   await deployLoadingScreenConfig()
 
   onProgress('Lancement de Minecraft…', 98)
+
+  const flagPath = join(MC_DIR, 'shinsei-ready.flag')
+  await unlink(flagPath).catch(() => {}) // nettoyer un éventuel flag de la session précédente
 
   const proc = spawn(java, [...jvmArgs, ...gameArgs], {
     detached:    true,
     stdio:       'pipe',
     cwd:         GAME_DIR,
-    windowsHide: true,   // pas de fenêtre CMD sur Windows
+    windowsHide: true,
   })
+
+  if (proc.pid !== undefined) void manageGameWindow(proc.pid, flagPath)
 
   const stderrBuf: string[] = []
   proc.stdout?.on('data', (d: Buffer) => { const l = d.toString().trim(); if (l) logAll(l) })
   proc.stderr?.on('data', (d: Buffer) => { const l = d.toString().trim(); if (l) { stderrBuf.push(l); logAll(l) } })
 
-  // Phase 1 — détecter un crash dans les 8 premières secondes
+  // Phase 1 — détecter un crash dans les 10 premières secondes
   await new Promise<void>((resolve, reject) => {
     let settled = false
     const settle = (fn: () => void) => { if (!settled) { settled = true; fn() } }
 
-    const timer = setTimeout(() => settle(resolve), 8000)
+    const timer = setTimeout(() => settle(resolve), 10000)
 
     proc.on('error', (err) => {
       settle(() => {
@@ -612,13 +867,15 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
           const errors = stderrBuf.filter(l => /Error|Exception/i.test(l)).slice(-3).join(' | ')
           reject(new Error(`Minecraft a planté (code ${code})${errors ? ` — ${errors}` : ''} — voir ${logPath}`))
         } else {
+          // Sortie propre dans les 10 premières secondes
+          opts.onExit?.()
           resolve()
         }
       })
     })
   })
 
-  // Phase 2 — jeu en cours, surveiller les crashs tardifs en arrière-plan
+  // Phase 2 — surveiller les crashs tardifs en arrière-plan
   proc.unref()
   onProgress('Minecraft lancé !', 100)
   onLog(`📋 Logs launcher : ${logPath}`)
@@ -629,7 +886,6 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
     logStream.end()
     if (code !== null && code !== 0) {
       ;(async () => {
-        // Lire les logs Minecraft pour avoir la vraie erreur
         let detail = ''
         try {
           const mcLog = await readFile(mcLogPath, 'utf-8')
@@ -639,7 +895,6 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
           if (errorLines.length) detail = errorLines.join('\n')
         } catch {}
 
-        // Fallback sur stderr
         if (!detail) {
           detail = stderrBuf.filter(l => /Error|Exception/i.test(l)).slice(-5).join('\n')
         }
@@ -650,6 +905,9 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
           `📋 ${mcLogPath}`,
         ].join('\n'))
       })()
+    } else {
+      // Sortie propre après les 10 premières secondes
+      opts.onExit?.()
     }
   })
 }

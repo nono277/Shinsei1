@@ -5,9 +5,9 @@
 @tailwind utilities;
 
 :root {
-  --shinsei-bg: #0a0a0f;
-  --shinsei-bg-light: #0f0f1a;
-  --shinsei-bg-card: #12121e;
+  --shinsei-bg: #0f0f1c;
+  --shinsei-bg-light: #151528;
+  --shinsei-bg-card: #1a1a2e;
   --shinsei-violet: #7c3aed;
   --shinsei-violet-light: #9d5ff5;
   --shinsei-violet-dim: #4c1d95;
@@ -34,7 +34,7 @@ html, body, #root {
   width: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f0f1a;
+  background: #151528;
 }
 ::-webkit-scrollbar-thumb {
   background: #7c3aed44;
@@ -75,6 +75,6 @@ html, body, #root {
 }
 
 select option {
-  background-color: #12121e;
+  background-color: #1a1a2e;
   color: #fff;
 }

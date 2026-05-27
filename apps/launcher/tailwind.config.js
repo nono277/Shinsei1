@@ -5,9 +5,9 @@ export default {
     extend: {
       colors: {
         shinsei: {
-          bg: '#0a0a0f',
-          'bg-light': '#0f0f1a',
-          'bg-card': '#12121e',
+          bg: '#0f0f1c',
+          'bg-light': '#151528',
+          'bg-card': '#1a1a2e',
           violet: '#7c3aed',
           'violet-light': '#9d5ff5',
           'violet-dim': '#4c1d95',

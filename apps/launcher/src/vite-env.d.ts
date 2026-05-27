@@ -9,9 +9,12 @@ interface Window {
     loginMicrosoft: () => Promise<{ success: boolean; data?: { uuid: string; username: string; accessToken: string }; error?: string }>
     loadSession:    () => Promise<{ success: boolean; data?: { uuid: string; username: string; accessToken: string } }>
     logout:         () => Promise<void>
-    launchGame:     (opts: { username: string; uuid: string; accessToken: string; javaPath: string; ramGb: number }) => Promise<{ success: boolean; error?: string }>
+    launchGame:     (opts: { username: string; uuid: string; accessToken: string; javaPath: string; ramGb: number; resolution?: string }) => Promise<{ success: boolean; error?: string; autoDetectedPath?: string }>
+    hideWindow:      () => void
+    showWindow:      () => void
     onGameProgress:  (cb: (data: { label: string; percent: number }) => void) => void
     onGameLog:       (cb: (line: string) => void) => void
     onGameCrashed:   (cb: (error: string) => void) => void
+    onGameExited:    (cb: () => void) => void
   }
 }

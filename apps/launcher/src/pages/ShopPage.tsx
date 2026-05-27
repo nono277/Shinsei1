@@ -83,8 +83,8 @@ export default function ShopPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.08, ease: 'easeOut' }}
               style={{
-                background: '#000',
-                border: `1px solid ${isOwned ? color + '55' : '#7c3aed1a'}`,
+                background: '#0d0d20',
+                border: `1px solid ${isOwned ? color + '55' : '#7c3aed35'}`,
                 boxShadow: isOwned ? `0 0 24px ${color}18, inset 0 0 30px ${color}06` : 'none',
                 borderRadius: 16,
                 overflow: 'hidden',
@@ -124,7 +124,7 @@ export default function ShopPage() {
                     left: 0,
                     right: 0,
                     height: '40%',
-                    background: 'linear-gradient(to bottom, transparent, #000)',
+                    background: 'linear-gradient(to bottom, transparent, #0d0d20)',
                   }}
                 />
                 {isOwned && (
@@ -149,7 +149,7 @@ export default function ShopPage() {
                       backgroundColor: color + '18',
                       border: `1px solid ${color}44`,
                       backdropFilter: 'blur(4px)',
-                      fontSize: 7,
+                      fontSize: 10,
                       letterSpacing: '0.2em',
                       padding: '2px 8px',
                       borderRadius: 999,
@@ -180,7 +180,7 @@ export default function ShopPage() {
                       textShadow: `0 0 16px ${color}66`,
                       fontFamily: 'Rajdhani, sans-serif',
                       fontWeight: 900,
-                      fontSize: 'clamp(16px, 1.4vw, 22px)',
+                      fontSize: 'clamp(18px, 1.6vw, 24px)',
                       textTransform: 'uppercase',
                       letterSpacing: '0.05em',
                       margin: 0,
@@ -189,7 +189,7 @@ export default function ShopPage() {
                   >
                     {grade.id}
                   </h3>
-                  <p style={{ color: color + '77', fontFamily: 'monospace', fontSize: 'clamp(11px, 0.85vw, 14px)', margin: 0 }}>
+                  <p style={{ color: color + '88', fontFamily: 'monospace', fontSize: 'clamp(13px, 1vw, 16px)', margin: 0 }}>
                     {grade.price}
                   </p>
                 </div>
@@ -205,12 +205,12 @@ export default function ShopPage() {
                         alignItems: 'flex-start',
                         gap: 5,
                         fontFamily: 'Rajdhani, sans-serif',
-                        fontSize: 'clamp(12px, 0.95vw, 15px)',
-                        color: '#ffffffaa',
+                        fontSize: 'clamp(14px, 1.1vw, 17px)',
+                        color: '#ffffffcc',
                         lineHeight: 1.3,
                       }}
                     >
-                      <span style={{ color, fontSize: 11, marginTop: 2, flexShrink: 0 }}>▸</span>
+                      <span style={{ color, fontSize: 13, marginTop: 2, flexShrink: 0 }}>▸</span>
                       {perk}
                     </li>
                   ))}
@@ -224,7 +224,7 @@ export default function ShopPage() {
                       borderRadius: 8,
                       fontFamily: 'Rajdhani, sans-serif',
                       fontWeight: 600,
-                      fontSize: 'clamp(13px, 1vw, 16px)',
+                      fontSize: 'clamp(15px, 1.2vw, 18px)',
                       textAlign: 'center',
                       letterSpacing: '0.1em',
                       color: color + 'bb',
@@ -245,7 +245,7 @@ export default function ShopPage() {
                       borderRadius: 8,
                       fontFamily: 'Rajdhani, sans-serif',
                       fontWeight: 700,
-                      fontSize: 'clamp(13px, 1vw, 16px)',
+                      fontSize: 'clamp(15px, 1.2vw, 18px)',
                       letterSpacing: '0.1em',
                       background: `linear-gradient(135deg, ${color}33, ${color}16)`,
                       border: `1px solid ${color}66`,
@@ -271,8 +271,8 @@ export default function ShopPage() {
           display: 'flex',
           alignItems: 'center',
           gap: 24,
-          background: '#0c0c18',
-          border: '1px solid rgba(88,101,242,0.2)',
+          background: '#12122a',
+          border: '1px solid rgba(88,101,242,0.25)',
           flexShrink: 0,
         }}
       >
@@ -280,13 +280,13 @@ export default function ShopPage() {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="#5865F2">
             <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.030z"/>
           </svg>
-          <span style={{ fontFamily: 'monospace', fontSize: 9, color: '#5865F2', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Discord</span>
+          <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#5865F2', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Discord</span>
         </div>
-        <div style={{ width: 1, height: 16, background: '#5865F222', flexShrink: 0 }} />
+        <div style={{ width: 1, height: 16, background: '#5865F244', flexShrink: 0 }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap' }}>
           {discordPerks.map((perk) => (
-            <div key={perk} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Rajdhani, sans-serif', fontSize: 10, color: '#ffffffaa' }}>
-              <span style={{ color: '#5865F2', fontSize: 8 }}>◆</span>
+            <div key={perk} style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'Rajdhani, sans-serif', fontSize: 12, color: '#ffffffcc' }}>
+              <span style={{ color: '#5865F2', fontSize: 10 }}>◆</span>
               {perk}
             </div>
           ))}

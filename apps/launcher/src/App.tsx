@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import Titlebar from './components/Titlebar'
 import Sidebar from './components/Sidebar'
 import DownloadBar from './components/DownloadBar'
+import LaunchOverlay from './components/LaunchOverlay'
 import BottomBar from './components/BottomBar'
 import HomePage from './pages/HomePage'
 import ProfilePage from './pages/ProfilePage'
@@ -47,7 +48,7 @@ export default function App() {
 
   if (checking) {
     return (
-      <div className="flex flex-col w-full h-full bg-[#0a0a0f] overflow-hidden">
+      <div className="flex flex-col w-full h-full bg-[#0f0f1c] overflow-hidden">
         <Titlebar />
         <div className="flex-1 flex items-center justify-center">
           <motion.div
@@ -61,7 +62,8 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col w-full h-full bg-[#0a0a0f] overflow-hidden">
+    <div className="flex flex-col w-full h-full bg-[#0f0f1c] overflow-hidden">
+      <LaunchOverlay />
       <Titlebar />
 
       <AnimatePresence mode="wait">

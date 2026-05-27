@@ -29,8 +29,8 @@ export default function ClassSelector() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-3">
-        <span className="text-[#ffffff33] font-mono text-[10px] tracking-[0.3em] uppercase">Classe active</span>
-        <div className="flex-1 h-px bg-[#7c3aed1a]" />
+        <span className="text-[#ffffff55] font-mono text-[12px] tracking-[0.3em] uppercase">Classe active</span>
+        <div className="flex-1 h-px bg-[#7c3aed35]" />
       </div>
       <div className="flex gap-2">
         {classes.map((cls) => {
@@ -40,7 +40,7 @@ export default function ClassSelector() {
               key={cls.id}
               initial={false}
               animate={{
-                opacity: isSelected ? 1 : 0.6,
+                opacity: isSelected ? 1 : 0.65,
                 borderColor: isSelected ? '#7c3aed' : 'rgba(0,0,0,0)',
                 boxShadow: isSelected
                   ? '0 0 20px rgba(124,58,237,0.35), 0 0 40px rgba(124,58,237,0.15)'
@@ -55,7 +55,7 @@ export default function ClassSelector() {
               transition={{ duration: 0.2 }}
               onClick={() => setSelectedClass(cls.id)}
               className="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 relative overflow-hidden"
-              style={{ backgroundColor: isSelected ? 'rgba(124,58,237,0.07)' : '#12121e' }}
+              style={{ backgroundColor: isSelected ? 'rgba(124,58,237,0.1)' : '#1a1a2e' }}
             >
               {isSelected && (
                 <motion.div
@@ -78,7 +78,7 @@ export default function ClassSelector() {
                   backgroundRepeat: 'no-repeat',
                   filter: isSelected
                     ? `brightness(1.1) drop-shadow(0 0 10px ${cls.color}99)`
-                    : 'brightness(0.75) saturate(0.85)',
+                    : 'brightness(0.85) saturate(0.9)',
                   transition: 'filter 0.2s',
                   outline: isSelected ? `2px solid ${cls.color}66` : '2px solid transparent',
                   outlineOffset: 2,
@@ -87,11 +87,11 @@ export default function ClassSelector() {
 
               <span
                 className="font-rajdhani font-semibold text-sm tracking-wide relative z-10 transition-colors duration-200"
-                style={{ color: isSelected ? cls.color : '#ffffff77' }}
+                style={{ color: isSelected ? cls.color : '#ffffff99' }}
               >
                 {cls.label}
               </span>
-              <span className="text-[#ffffff2a] text-[9px] font-mono text-center leading-tight relative z-10">
+              <span className="text-[#ffffff55] text-[11px] font-mono text-center leading-tight relative z-10">
                 {cls.desc}
               </span>
             </motion.button>

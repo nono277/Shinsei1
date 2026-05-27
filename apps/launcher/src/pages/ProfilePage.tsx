@@ -23,11 +23,11 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-[#0f0f1a] border border-[#7c3aed1a] rounded-xl p-4 flex flex-col gap-1"
+      className="bg-[#151528] border border-[#7c3aed35] rounded-xl p-4 flex flex-col gap-1"
     >
-      <span className="text-[#ffffff33] font-mono text-[9px] tracking-[0.25em] uppercase">{label}</span>
+      <span className="text-[#ffffff55] font-mono text-[11px] tracking-[0.25em] uppercase">{label}</span>
       <span className="font-rajdhani font-bold text-2xl text-white">{value}</span>
-      {sub && <span className="text-[#7c3aed88] font-mono text-[9px]">{sub}</span>}
+      {sub && <span className="text-[#7c3aedaa] font-mono text-[11px]">{sub}</span>}
     </motion.div>
   )
 }
@@ -46,34 +46,34 @@ export default function ProfilePage() {
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-[#0f0f1a] border border-[#7c3aed1a] rounded-xl p-5 flex gap-5 items-center"
+        className="bg-[#151528] border border-[#7c3aed35] rounded-xl p-5 flex gap-5 items-center"
       >
         <div className="flex-shrink-0 relative">
-          <div className="w-24 h-24 rounded-xl border-2 border-[#7c3aed44] overflow-hidden bg-[#12121e] flex items-center justify-center">
+          <div className="w-24 h-24 rounded-xl border-2 border-[#7c3aed66] overflow-hidden bg-[#1a1a2e] flex items-center justify-center">
             <img
               src={`https://mc-heads.net/avatar/${user.uuid}/100`}
               alt={user.username}
               className="w-full h-full object-cover"
               onError={(e) => { e.currentTarget.src = ''; e.currentTarget.style.display = 'none' }}
             />
-            <span className="absolute font-rajdhani font-bold text-3xl text-[#7c3aed44]">
+            <span className="absolute font-rajdhani font-bold text-3xl text-[#7c3aed66]">
               {user.username.charAt(0)}
             </span>
           </div>
-          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#57ff6e] border-2 border-[#0a0a0f]" />
+          <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#57ff6e] border-2 border-[#0f0f1c]" />
         </div>
 
         <div className="flex-1 min-w-0">
           <h2 className="font-rajdhani font-bold text-2xl text-white">{user.username}</h2>
-          <p className="font-mono text-[9px] text-[#ffffff22] tracking-widest truncate">{user.uuid}</p>
+          <p className="font-mono text-[11px] text-[#ffffff40] tracking-widest truncate">{user.uuid}</p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2">
             <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[9px] text-[#ffffff33] uppercase tracking-widest">Faction</span>
+              <span className="font-mono text-[11px] text-[#ffffff55] uppercase tracking-widest">Faction</span>
               <span className="font-rajdhani font-semibold text-sm text-[#7c3aed]">{user.faction}</span>
             </div>
             {selectedClass && (
               <div className="flex items-center gap-1.5">
-                <span className="font-mono text-[9px] text-[#ffffff33] uppercase tracking-widest">Classe</span>
+                <span className="font-mono text-[11px] text-[#ffffff55] uppercase tracking-widest">Classe</span>
                 <span className="font-rajdhani font-semibold text-sm text-[#06b6d4] capitalize">{selectedClass}</span>
               </div>
             )}
@@ -87,7 +87,7 @@ export default function ProfilePage() {
             const color = shopCfg?.color ?? '#ffffff88'
             return (
               <div className="flex flex-col items-center gap-1">
-                <span className="font-mono text-[8px] text-[#ffffff22] tracking-widest uppercase">Boutique</span>
+                <span className="font-mono text-[11px] text-[#ffffff40] tracking-widest uppercase">Boutique</span>
                 <motion.div
                   whileHover={{ boxShadow: `0 0 18px ${color}88, inset 0 0 12px ${color}18` }}
                   className="flex items-center justify-center rounded-lg"
@@ -113,7 +113,7 @@ export default function ProfilePage() {
             const color = gameplayCfg?.color ?? '#ffffff88'
             return (
               <div className="flex flex-col items-center gap-1">
-                <span className="font-mono text-[8px] text-[#ffffff22] tracking-widest uppercase">Gameplay</span>
+                <span className="font-mono text-[11px] text-[#ffffff40] tracking-widest uppercase">Gameplay</span>
                 <motion.div
                   whileHover={{ boxShadow: `0 0 18px ${color}88, inset 0 0 12px ${color}18` }}
                   className="flex items-center justify-center rounded-lg"
@@ -142,17 +142,17 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="bg-[#0f0f1a] border border-[#7c3aed1a] rounded-xl p-4"
+        className="bg-[#151528] border border-[#7c3aed35] rounded-xl p-4"
       >
         <div className="flex items-center justify-between mb-2">
-          <span className="font-mono text-[9px] text-[#ffffff33] tracking-[0.25em] uppercase">
+          <span className="font-mono text-[11px] text-[#ffffff55] tracking-[0.25em] uppercase">
             Progression vers {nextGrade}
           </span>
           <span className="font-mono text-xs text-[#7c3aed]">
             {user.xpCurrent.toLocaleString('fr-FR')} / {user.xpForNext.toLocaleString('fr-FR')} XP
           </span>
         </div>
-        <div className="h-2 bg-[#ffffff08] rounded-full overflow-hidden">
+        <div className="h-2 bg-[#ffffff15] rounded-full overflow-hidden">
           <motion.div
             initial={{ width: 0 }}
             animate={{ width: `${xpPercent}%` }}
@@ -162,9 +162,9 @@ export default function ProfilePage() {
           />
         </div>
         <div className="flex justify-between mt-1.5">
-          <span className="font-mono text-[9px] text-[#ffffff22]">{user.gradeGameplay}</span>
-          <span className="font-mono text-[9px] text-[#7c3aed88]">{xpPercent}%</span>
-          <span className="font-mono text-[9px] text-[#ffffff22]">{nextGrade}</span>
+          <span className="font-mono text-[11px] text-[#ffffff40]">{user.gradeGameplay}</span>
+          <span className="font-mono text-[11px] text-[#7c3aedaa]">{xpPercent}%</span>
+          <span className="font-mono text-[11px] text-[#ffffff40]">{nextGrade}</span>
         </div>
       </motion.div>
 

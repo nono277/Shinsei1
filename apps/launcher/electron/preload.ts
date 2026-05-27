@@ -8,11 +8,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loginMicrosoft:  () => ipcRenderer.invoke('auth:microsoft'),
   loadSession:     () => ipcRenderer.invoke('auth:loadSession'),
   logout:          () => ipcRenderer.invoke('auth:logout'),
+  autoDetectJava:  () => ipcRenderer.invoke('java:autoDetect'),
   launchGame:      (opts: object) => ipcRenderer.invoke('game:launch', opts),
+  hideWindow:      () => ipcRenderer.send('window:hide'),
+  showWindow:      () => ipcRenderer.send('window:show'),
   onGameProgress:  (cb: (data: { label: string; percent: number }) => void) =>
     ipcRenderer.on('game:progress', (_, data) => cb(data)),
   onGameLog:       (cb: (line: string) => void) =>
     ipcRenderer.on('game:log', (_, line) => cb(line)),
   onGameCrashed:   (cb: (error: string) => void) =>
     ipcRenderer.on('game:crashed', (_, error) => cb(error)),
+  onGameExited:    (cb: () => void) =>
+    ipcRenderer.on('game:exited', () => cb()),
 })

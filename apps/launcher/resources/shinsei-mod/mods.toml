@@ -1,0 +1,20 @@
+modLoader="javafml"
+loaderVersion="[52,)"
+license="All Rights Reserved"
+[[mods]]
+    modId="shinsei"
+    version="1.0.0"
+    displayName="Shinsei Menu"
+    description="Custom title screen for SHINSEI RPG server."
+[[dependencies.shinsei]]
+    modId="forge"
+    mandatory=true
+    versionRange="[52,)"
+    ordering="NONE"
+    side="CLIENT"
+[[dependencies.shinsei]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="[1.21.1,)"
+    ordering="NONE"
+    side="CLIENT"

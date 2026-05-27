@@ -70,7 +70,7 @@ export default function Sidebar() {
   const { currentPage, setCurrentPage, setUser } = useLauncherStore()
 
   return (
-    <aside className="w-14 flex flex-col items-center py-4 gap-2 bg-[#0a0a0f] border-r border-[#7c3aed1a] flex-shrink-0">
+    <aside className="w-14 flex flex-col items-center py-4 gap-2 bg-[#0f0f1c] border-r border-[#7c3aed35] flex-shrink-0">
       <div className="flex-1 flex flex-col gap-1 w-full px-1">
         {navItems.map((item) => {
           const isActive = currentPage === item.id
@@ -83,8 +83,8 @@ export default function Sidebar() {
               onClick={() => setCurrentPage(item.id)}
               className="w-full aspect-square flex items-center justify-center rounded-lg transition-all duration-200 relative"
               style={{
-                backgroundColor: isActive ? '#7c3aed22' : 'transparent',
-                color: isActive ? '#7c3aed' : '#ffffff33',
+                backgroundColor: isActive ? '#7c3aed35' : 'transparent',
+                color: isActive ? '#7c3aed' : '#ffffff55',
                 boxShadow: isActive ? '0 0 12px #7c3aed33' : 'none',
               }}
             >
@@ -101,7 +101,7 @@ export default function Sidebar() {
         })}
       </div>
 
-      <div className="w-8 h-px bg-[#7c3aed1a]" />
+      <div className="w-8 h-px bg-[#7c3aed35]" />
 
       <motion.button
         whileHover={{ scale: 1.1, color: '#ff4444' }}
@@ -109,7 +109,7 @@ export default function Sidebar() {
         title="Se déconnecter"
         onClick={() => { window.electronAPI?.logout(); setUser(null) }}
         className="w-full aspect-square flex items-center justify-center rounded-lg transition-colors duration-200 px-1"
-        style={{ color: '#ffffff22' }}
+        style={{ color: '#ffffff44' }}
       >
         <LogoutIcon />
       </motion.button>

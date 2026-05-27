@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Noufel SELLAY\\\\Documents\\\\documents perso\\\\taff perso\\\\shinsei\\\\launcher shinsei\\\\Shinsei1\" -Recurse -Include \"package.json\", \"tsconfig.json\", \"vite.config.ts\", \"tailwind.config.js\", \".env*\")",
+      "Bash(Select-Object FullName)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Noufel SELLAY\\\\Documents\\\\documents perso\\\\taff perso\\\\shinsei\\\\launcher shinsei\\\\Shinsei1\\\\apps\\\\launcher\\\\src\" -Recurse -Filter \"*.tsx\")",
+      "Bash(pnpm tsc *)",
+      "Bash(dir \"C:\\\\Users\\\\Noufel SELLAY\\\\Documents\\\\documents perso\\\\taff perso\\\\shinsei\\\\launcher shinsei\\\\Shinsei1\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\Noufel SELLAY\\\\AppData\\\\Roaming\\\\.shinsei\\\\logs\\\\latest.log\")",
+      "Bash(Select-String -Pattern \"shinsei|Mod List|Scanning|LOADING|ERROR|fml\")",
+      "Bash(Select-Object -First 50)",
+      "Read(//c/Users/Noufel SELLAY/AppData/Roaming/.shinsei/mods/**)",
+      "Read(//c/Users/Noufel SELLAY/AppData/Roaming/.shinsei/**)",
+      "Bash(Get-ChildItem *)",
+      "PowerShell(Get-ChildItem *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell($jarPath = \"$env:APPDATA\\\\.shinsei\\\\mods\\\\shinsei-menu.jar\"; Add-Type -Assembly System.IO.Compression.FileSystem; $z = [System.IO.Compression.ZipFile]::OpenRead\\($jarPath\\); $z.Entries | ForEach-Object { $_.FullName }; $z.Dispose\\(\\))",
+      "PowerShell(Test-Path *)",
+      "PowerShell(Get-Item *)"
+    ]
+  }
+}

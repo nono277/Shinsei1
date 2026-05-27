@@ -23,12 +23,13 @@ export default function LoginPage() {
       if (!result.success) throw new Error(result.error)
 
       setStep('fetching')
-      const { uuid, username } = result.data
+      if (!result.data) throw new Error('Données de profil manquantes')
+      const { uuid, username, accessToken } = result.data
 
       setUser({
         username,
         uuid,
-        accessToken:       result.data.accessToken,
+        accessToken,
         gradeShop:         'Kaigen',
         gradeGameplay:     'D',
         faction:           Faction.ORDRE,
@@ -61,7 +62,7 @@ export default function LoginPage() {
       />
       <div
         className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at center, transparent 30%, #0a0a0f 100%)' }}
+        style={{ background: 'radial-gradient(ellipse at center, transparent 30%, #0f0f1c 100%)' }}
       />
 
       {/* Particles ambiance */}
@@ -108,7 +109,7 @@ export default function LoginPage() {
               新世
             </motion.span>
           </div>
-          <p className="font-mono text-[10px] text-[#ffffff55] tracking-[0.4em] uppercase">
+          <p className="font-mono text-[12px] text-[#ffffff77] tracking-[0.4em] uppercase">
             Connexion requise pour accéder au launcher
           </p>
         </motion.div>
@@ -120,15 +121,15 @@ export default function LoginPage() {
           transition={{ duration: 0.6, delay: 0.2, ease: 'easeOut' }}
           className="flex flex-col items-center gap-4 w-full max-w-xs"
           style={{
-            background: 'rgba(12,12,24,0.85)',
-            border: '1px solid rgba(124,58,237,0.2)',
+            background: 'rgba(18,18,42,0.88)',
+            border: '1px solid rgba(124,58,237,0.25)',
             borderRadius: 20,
             padding: '28px 32px',
             backdropFilter: 'blur(12px)',
-            boxShadow: '0 0 60px rgba(124,58,237,0.08)',
+            boxShadow: '0 0 60px rgba(124,58,237,0.1)',
           }}
         >
-          <p className="font-rajdhani font-semibold text-sm text-[#ffffffbb] text-center leading-snug">
+          <p className="font-rajdhani font-semibold text-sm text-[#ffffffcc] text-center leading-snug">
             Connecte-toi avec ton compte Microsoft lié à Minecraft
           </p>
 
@@ -198,7 +199,7 @@ export default function LoginPage() {
                   border: '1px solid rgba(255,34,34,0.3)',
                   color: '#ff6666',
                   fontFamily: 'monospace',
-                  fontSize: 10,
+                  fontSize: 12,
                 }}
               >
                 {error}
@@ -211,7 +212,7 @@ export default function LoginPage() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8 }}
-          className="font-mono text-[9px] text-[#ffffff22] tracking-widest"
+          className="font-mono text-[11px] text-[#ffffff40] tracking-widest"
         >
           SHINSEI © 2026 — Serveur Minecraft RPG
         </motion.p>

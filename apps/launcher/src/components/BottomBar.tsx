@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { useLauncherStore } from '../store/launcherStore'
 import gradeSprite from '../img/icon des rangs/b4248e24-a7b2-4448-8cb3-d1d330c7e1b0.png'
@@ -26,13 +26,13 @@ const SHOP_LOGOS: Record<string, string> = {
 }
 import { GRADE_CONFIG, GRADE_SPRITE_SIZE, GRADE_ICON_SIZE } from '../constants/grades'
 import { SHOP_GRADE_CONFIG } from '../constants/shopGrades'
+import ErrorModal from './ErrorModal'
 
-// Badge gameplay : sprite D/C/B/A/S/SS
 function GameplayBadge({ grade }: { grade: string }) {
   const cfg = GRADE_CONFIG[grade]
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[#ffffff22] font-mono text-[8px] tracking-widest uppercase">Gameplay</span>
+      <span className="text-[#ffffff40] font-mono text-[11px] tracking-widest uppercase">Gameplay</span>
       <motion.div
         whileHover={{ boxShadow: `0 0 18px ${cfg?.color ?? '#ffffff'}88, inset 0 0 12px ${cfg?.color ?? '#ffffff'}18` }}
         className="flex items-center justify-center rounded-lg"
@@ -66,13 +66,12 @@ function GameplayBadge({ grade }: { grade: string }) {
   )
 }
 
-// Badge boutique : CSS pur — Kaigen / Raijin / Oni / Shogun / Archon
 function ShopBadge({ grade }: { grade: string }) {
   const cfg = SHOP_GRADE_CONFIG[grade as keyof typeof SHOP_GRADE_CONFIG]
   const color = cfg?.color ?? '#ffffff88'
   return (
     <div className="flex flex-col items-center gap-0.5">
-      <span className="text-[#ffffff22] font-mono text-[8px] tracking-widest uppercase">Boutique</span>
+      <span className="text-[#ffffff40] font-mono text-[11px] tracking-widest uppercase">Boutique</span>
       <motion.div
         whileHover={{ boxShadow: `0 0 18px ${color}88, inset 0 0 12px ${color}18` }}
         className="flex items-center justify-center rounded-lg"
@@ -111,12 +110,12 @@ function PingIndicator({ ping }: { ping: number | null }) {
             className="w-[3px] rounded-sm transition-colors duration-500"
             style={{
               height: b === 1 ? '33%' : b === 2 ? '66%' : '100%',
-              backgroundColor: b <= bars ? color : '#ffffff18',
+              backgroundColor: b <= bars ? color : '#ffffff35',
             }}
           />
         ))}
       </div>
-      <span className="font-mono text-[9px] transition-colors duration-500" style={{ color }}>
+      <span className="font-mono text-[11px] transition-colors duration-500" style={{ color }}>
         {ping !== null ? `${ping}ms` : '—'}
       </span>
     </div>
@@ -124,7 +123,7 @@ function PingIndicator({ ping }: { ping: number | null }) {
 }
 
 export default function BottomBar() {
-  const { user, serverStatus, ping, setServerStatus, setPing, settings, setIsDownloading, setDownloadProgress, setCurrentDownloadFile } = useLauncherStore()
+  const { user, serverStatus, ping, setServerStatus, setPing, settings, updateSettings, setIsDownloading, setDownloadProgress, setCurrentDownloadFile } = useLauncherStore()
   const [launching, setLaunching] = useState(false)
   const [launchError, setLaunchError] = useState<string | null>(null)
 
@@ -152,8 +151,23 @@ export default function BottomBar() {
     setLaunching(false)
     setIsDownloading(false)
 
+    // Sauvegarder le chemin Java auto-détecté pour les prochains lancements
+    if (result?.autoDetectedPath) {
+      updateSettings({ javaPath: result.autoDetectedPath })
+    }
+
     if (result && !result.success) {
       setLaunchError(result.error ?? 'Erreur de lancement')
+      return
+    }
+
+    // Masquer / réduire le launcher selon les préférences
+    if (settings.closeLauncherOnPlay) {
+      if (settings.minimizeToTray) {
+        window.electronAPI?.minimize()
+      } else {
+        window.electronAPI?.hideWindow()
+      }
     }
   }
 
@@ -170,47 +184,48 @@ export default function BottomBar() {
 
   useEffect(() => {
     window.electronAPI?.onGameCrashed((error) => {
-      setLaunchError(error.split('\n')[0]) // première ligne seulement dans l'UI
+      window.electronAPI?.showWindow()
+      setLaunchError(error)
+    })
+    window.electronAPI?.onGameExited(() => {
+      window.electronAPI?.showWindow()
     })
   }, [])
 
   return (
-    <div className="flex items-center justify-between px-6 py-2.5 bg-[#0a0a0f] border-t border-[#7c3aed1a] flex-shrink-0">
-      <div className="flex items-center gap-4">
-        <div className="w-8 h-8 rounded-full bg-[#7c3aed1a] border border-[#7c3aed44] flex items-center justify-center flex-shrink-0">
-          <span className="text-[#7c3aed] font-mono text-xs font-bold">
-            {user?.username.charAt(0).toUpperCase() ?? '?'}
-          </span>
-        </div>
+    <>
+      <div className="flex items-center justify-between px-6 py-2.5 bg-[#0f0f1c] border-t border-[#7c3aed35] flex-shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="w-8 h-8 rounded-full bg-[#7c3aed28] border border-[#7c3aed66] flex items-center justify-center flex-shrink-0">
+            <span className="text-[#7c3aed] font-mono text-xs font-bold">
+              {user?.username.charAt(0).toUpperCase() ?? '?'}
+            </span>
+          </div>
 
-        <div className="flex flex-col gap-0.5">
-          <span className="font-rajdhani font-semibold text-sm text-white leading-none">
-            {user?.username ?? '—'}
-          </span>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-              <div className={`w-1.5 h-1.5 rounded-full ${serverStatus.online ? 'bg-[#57ff6e]' : 'bg-[#ff2222]'}`} />
-              <span className="font-mono text-[9px] text-[#57ff6e]">
-                {serverStatus.online ? `${serverStatus.players} joueurs` : 'Hors ligne'}
-              </span>
+          <div className="flex flex-col gap-0.5">
+            <span className="font-rajdhani font-semibold text-sm text-white leading-none">
+              {user?.username ?? '—'}
+            </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <div className={`w-1.5 h-1.5 rounded-full ${serverStatus.online ? 'bg-[#57ff6e]' : 'bg-[#ff2222]'}`} />
+                <span className="font-mono text-[11px] text-[#57ff6e]">
+                  {serverStatus.online ? `${serverStatus.players} joueurs` : 'Hors ligne'}
+                </span>
+              </div>
+              <span className="text-[#ffffff35]">·</span>
+              <PingIndicator ping={ping} />
             </div>
-            <span className="text-[#ffffff18]">·</span>
-            <PingIndicator ping={ping} />
           </div>
+
+          {user && (
+            <div className="flex gap-4 ml-2 items-end">
+              <ShopBadge grade={user.gradeShop} />
+              <GameplayBadge grade={user.gradeGameplay} />
+            </div>
+          )}
         </div>
 
-        {user && (
-          <div className="flex gap-4 ml-2 items-end">
-            <ShopBadge grade={user.gradeShop} />
-            <GameplayBadge grade={user.gradeGameplay} />
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col items-end gap-1">
-        {launchError && (
-          <span className="font-mono text-[9px] text-[#ff6666] max-w-[200px] text-right truncate">{launchError}</span>
-        )}
         <motion.button
           onClick={handlePlay}
           disabled={launching}
@@ -251,6 +266,15 @@ export default function BottomBar() {
           )}
         </motion.button>
       </div>
-    </div>
+
+      <AnimatePresence>
+        {launchError && (
+          <ErrorModal
+            error={launchError}
+            onClose={() => setLaunchError(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   )
 }

@@ -3,7 +3,7 @@ import bgImage from '../img/background/c7ef688c-2493-4716-b3fd-a39a8e253d36.png'
 
 export default function HeroSection() {
   return (
-    <div className="relative h-52 rounded-xl overflow-hidden border border-[#7c3aed1a]">
+    <div className="relative h-52 rounded-xl overflow-hidden border border-[#7c3aed35]">
       <img
         src={bgImage}
         alt=""
@@ -15,7 +15,7 @@ export default function HeroSection() {
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(90deg, #0a0a0fbb 0%, #0a0a0f77 35%, transparent 65%), linear-gradient(0deg, #0a0a0f99 0%, transparent 55%)',
+            'linear-gradient(90deg, #0f0f1cbb 0%, #0f0f1c77 35%, transparent 65%), linear-gradient(0deg, #0f0f1c99 0%, transparent 55%)',
         }}
       />
 
@@ -48,7 +48,7 @@ export default function HeroSection() {
             </motion.span>
           </div>
           <p
-            className="text-[#ffffffbb] text-sm tracking-widest uppercase mt-1"
+            className="text-[#ffffffcc] text-sm tracking-widest uppercase mt-1"
             style={{ fontFamily: 'Rajdhani', fontWeight: 700 }}
           >
             La faille dimensionnelle s'est rouverte
@@ -60,10 +60,10 @@ export default function HeroSection() {
         <motion.div
           animate={{ opacity: [0.6, 1, 0.6] }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="flex items-center gap-1.5 bg-[#57ff6e18] border border-[#57ff6e44] rounded-full px-3 py-1 backdrop-blur-sm"
+          className="flex items-center gap-1.5 bg-[#57ff6e28] border border-[#57ff6e66] rounded-full px-3 py-1 backdrop-blur-sm"
         >
           <div className="w-1.5 h-1.5 rounded-full bg-[#57ff6e]" />
-          <span className="text-[#57ff6e] font-mono text-xs">EN LIGNE</span>
+          <span className="text-[#57ff6e] font-mono text-sm">EN LIGNE</span>
         </motion.div>
       </div>
     </div>
