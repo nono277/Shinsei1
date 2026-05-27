@@ -1,11 +1,12 @@
 import { spawn, exec }            from 'child_process'
 import { join, delimiter }         from 'path'
-import { mkdir, readFile, access, writeFile } from 'fs/promises'
+import { mkdir, readFile, access, writeFile, copyFile } from 'fs/promises'
 import { createWriteStream }       from 'fs'
 import { promisify }               from 'util'
 import * as https                  from 'https'
 import * as http                   from 'http'
 import * as os                     from 'os'
+import { app }                     from 'electron'
 
 const execAsync = promisify(exec)
 
@@ -187,7 +188,6 @@ function isOSAllowed(lib: any): boolean {
 
 async function downloadVanillaLibraries(
   libs:      any[],
-  nativesDir: string,
   onProgress: (label: string, pct: number) => void
 ): Promise<string[]> {
   const classpath: string[] = []
@@ -206,26 +206,19 @@ async function downloadVanillaLibraries(
       await downloadFile(artifact.url, libPath)
     }
 
-    // Extraire les natives si nécessaire
-    const isNative = artifact.path.includes('natives')
-    if (isNative) {
-      await extractNatives(libPath, nativesDir)
-    } else {
-      classpath.push(libPath)
-    }
+    // Tout va dans le classpath — les JARs natifs LWJGL 3 s'auto-extraient
+    // via -Dorg.lwjgl.system.SharedLibraryExtractPath (déjà dans le manifest)
+    classpath.push(libPath)
 
-    // Gérer l'ancien format classifiers (LWJGL 2 / anciennes versions)
-    const osName = process.platform === 'win32' ? 'windows'
-                 : process.platform === 'darwin' ? 'osx' : 'linux'
-    const nativeKey = lib.natives?.[osName]?.replace('${arch}', process.arch === 'x64' ? '64' : '32')
-    if (nativeKey && lib.downloads?.classifiers?.[nativeKey]) {
-      const nat     = lib.downloads.classifiers[nativeKey]
+    // Ancien format classifiers (LWJGL 2 / très anciennes versions)
+    const osName  = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'osx' : 'linux'
+    const natKey  = lib.natives?.[osName]?.replace('${arch}', process.arch === 'x64' ? '64' : '32')
+    if (natKey && lib.downloads?.classifiers?.[natKey]) {
+      const nat     = lib.downloads.classifiers[natKey]
       const natPath = join(LIBS_DIR, nat.path)
       await ensureDir(join(natPath, '..'))
-      if (!await fileExists(natPath)) {
-        await downloadFile(nat.url, natPath)
-      }
-      await extractNatives(natPath, nativesDir)
+      if (!await fileExists(natPath)) await downloadFile(nat.url, natPath)
+      classpath.push(natPath)
     }
   }
   return classpath
@@ -315,6 +308,118 @@ export async function isFabricInstalled(): Promise<boolean> {
   }
 }
 
+// ── Déploiement de l'écran de chargement custom ───────────────────────────────
+
+async function deployLoadingScreenConfig(): Promise<void> {
+  const configDir      = join(MC_DIR, 'config')
+  const fancyAssetsDir = join(configDir, 'fancymenu', 'assets')
+  const fancyCustomDir = join(configDir, 'fancymenu', 'customization')
+  const drippyDir      = join(configDir, 'drippyloadingscreen')
+
+  await ensureDir(fancyAssetsDir)
+  await ensureDir(fancyCustomDir)
+  await ensureDir(drippyDir)
+
+  // Copier loading.png depuis les ressources du launcher
+  const srcPng  = join(app.getAppPath(), 'src', 'img', 'loading', 'loading.png')
+  const destPng = join(fancyAssetsDir, 'loading.png')
+  if (await fileExists(srcPng)) {
+    await copyFile(srcPng, destPng)
+  }
+
+  // Chemins absolus normalisés pour drippyloadingscreen
+  const bgPath      = destPng.replace(/\\/g, '/')
+  const barCyanPath = join(fancyAssetsDir, 'bar_cyan.png').replace(/\\/g, '/')
+  const barDarkPath = join(fancyAssetsDir, 'bar_dark.png').replace(/\\/g, '/')
+
+  await writeFile(join(drippyDir, 'options.txt'),
+`##[general]
+
+B:early_fade_out_elements = 'true';
+B:allow_universal_layouts = 'true';
+B:fade_out_loading_screen = 'true';
+B:wait_for_textures_in_loading = 'true';
+
+
+##[early_loading]
+
+I:early_loading_top_right_watermark_position_offset_y = '0';
+I:early_loading_bottom_left_watermark_position_offset_x = '0';
+I:early_loading_bottom_left_watermark_position_offset_y = '0';
+B:early_loading_hide_logger = 'true';
+I:early_loading_bar_width = '-1';
+I:early_loading_bar_position_offset_y = '0';
+I:early_loading_top_right_watermark_height = '100';
+I:early_loading_top_right_watermark_position_offset_x = '0';
+I:early_loading_bottom_right_watermark_height = '100';
+I:early_loading_bar_position_offset_x = '0';
+I:early_loading_logo_height = '120';
+I:early_loading_top_right_watermark_width = '100';
+I:early_loading_bottom_right_watermark_position_offset_y = '0';
+I:early_loading_window_height = '-1';
+S:early_loading_bar_progress_texture_path = '${barCyanPath}';
+I:early_loading_bottom_right_watermark_position_offset_x = '0';
+S:early_loading_background_texture_path = '${bgPath}';
+B:early_loading_background_preserve_aspect_ratio = 'false';
+I:early_loading_top_left_watermark_width = '100';
+B:early_loading_hide_logo = 'true';
+S:early_loading_bar_background_texture_path = '${barDarkPath}';
+I:early_loading_top_left_watermark_position_offset_y = '0';
+I:early_loading_top_left_watermark_position_offset_x = '0';
+I:early_loading_logo_width = '480';
+I:early_loading_bottom_left_watermark_width = '100';
+I:early_loading_bottom_right_watermark_width = '100';
+I:early_loading_bottom_left_watermark_height = '100';
+I:early_loading_bar_height = '6';
+S:early_loading_window_title = 'SHINSEI';
+I:early_loading_top_left_watermark_height = '100';
+I:early_loading_window_width = '-1';
+I:early_loading_logo_position_offset_y = '-50';
+B:early_loading_hide_bar = 'false';
+I:early_loading_logo_position_offset_x = '0';`)
+
+  await writeFile(join(fancyCustomDir, 'shinsei_loading.txt'),
+`type=fancymenu_layout
+
+meta{
+screen=de.keksuccino.drippyloadingscreen.customization.DrippyOverlayScreen
+name=shinsei_loading
+is_enabled=enabled
+last_edited_time=0
+}
+
+menu_background{
+background_type=fancymenu.backgrounds.image
+image_path=fancymenu/assets/loading.png
+}
+
+element{
+element_type=drippy_vanilla_bar
+identifier=loading_bar
+anchor=bot_left
+posx=0
+posy=-22
+width=3840
+height=5
+color=#ff00ffff
+layer=1
+}
+
+element{
+element_type=text_v2
+identifier=loading_label
+anchor=bot_center
+posx=-100
+posy=-32
+width=200
+height=14
+text=CHARGEMENT...
+color=#ffffffff
+shadow=false
+layer=2
+}`)
+}
+
 // ── Lancement ─────────────────────────────────────────────────────────────────
 
 export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
@@ -343,13 +448,10 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
 
   // ── Librairies vanilla ──
   onProgress('Vérification des librairies vanilla…', 12)
-  const fabricId   = `fabric-loader-0-${MC_VERSION}` // sera mis à jour
   const nativesDir = join(VERSIONS_DIR, MC_VERSION, 'natives')
   await ensureDir(nativesDir)
 
-  const vanillaClasspath = await downloadVanillaLibraries(
-    vanillaMeta.libraries, nativesDir, onProgress
-  )
+  const vanillaClasspath = await downloadVanillaLibraries(vanillaMeta.libraries, onProgress)
 
   // ── Assets ──
   onProgress('Vérification des assets…', 43)
@@ -409,8 +511,13 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
     return result
   }
 
+  // ── Agent Shinsei Boot Screen (optionnel) ──
+  const agentJar  = join(MC_DIR, 'shinsei-boot.jar')
+  const agentArgs = await fileExists(agentJar) ? [`-javaagent:${agentJar}`] : []
+
   // ── Arguments JVM ──
   const jvmArgs: string[] = [
+    ...agentArgs,
     `-Xmx${opts.ramGb}G`,
     `-Xms1G`,
     `-Dfabric.gameJarPath=${clientJar}`,
@@ -426,10 +533,19 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   ]
 
   // ── Résolution du chemin Java ──
-  let java = opts.javaPath?.trim() || 'java'
-  if (java !== 'java' && java !== 'javaw' && !await fileExists(java)) {
-    onLog(`⚠️  Java non trouvé à "${java}", bascule sur java du PATH…`)
-    java = 'java'
+  let java = opts.javaPath?.trim() || (process.platform === 'win32' ? 'javaw' : 'java')
+
+  // Sur Windows, préférer javaw.exe (pas de fenêtre CMD) si le chemin pointe sur java.exe
+  if (process.platform === 'win32' && /java\.exe$/i.test(java)) {
+    const javaw = java.replace(/java\.exe$/i, 'javaw.exe')
+    if (await fileExists(javaw)) java = javaw
+  }
+
+  // Vérifier que l'exécutable existe (chemins absolus seulement)
+  const isAbsolute = java.includes('\\') || java.includes('/')
+  if (isAbsolute && !await fileExists(java)) {
+    onLog(`⚠️  Java non trouvé à "${java}", bascule sur javaw du PATH…`)
+    java = process.platform === 'win32' ? 'javaw' : 'java'
   }
 
   // ── Log fichier ──
@@ -443,16 +559,22 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   logAll(`Dir      : ${GAME_DIR}`)
   logAll(`CP count : ${classpath.length}`)
   logAll(`Main     : ${fabricProfile.mainClass ?? vanillaMeta.mainClass}`)
-  logAll(`JVM args : ${jvmArgs.join(' ')}`)
-  logAll(`Game args: ${gameArgs.join(' ')}`)
+  logAll(`JVM args (${jvmArgs.length}):`)
+  jvmArgs.forEach((a, i) => logAll(`  [${i}] ${a}`))
+  logAll(`Game args (${gameArgs.length}):`)
+  gameArgs.forEach((a, i) => logAll(`  [${i}] ${a}`))
   logAll('=== OUTPUT ===')
+
+  onProgress('Déploiement de l\'écran de chargement…', 97)
+  await deployLoadingScreenConfig()
 
   onProgress('Lancement de Minecraft…', 98)
 
   const proc = spawn(java, [...jvmArgs, ...gameArgs], {
-    detached: true,
-    stdio:    'pipe',
-    cwd:      GAME_DIR,
+    detached:    true,
+    stdio:       'pipe',
+    cwd:         GAME_DIR,
+    windowsHide: true,   // pas de fenêtre CMD sur Windows
   })
 
   const stderrBuf: string[] = []
@@ -496,13 +618,35 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   // Phase 2 — jeu en cours, surveiller les crashs tardifs en arrière-plan
   proc.unref()
   onProgress('Minecraft lancé !', 100)
-  onLog(`📋 Logs : ${logPath}`)
+  onLog(`📋 Logs launcher : ${logPath}`)
+
+  const mcLogPath = join(GAME_DIR, 'logs', 'latest.log')
 
   proc.once('close', (code) => {
     logStream.end()
     if (code !== null && code !== 0) {
-      const errors = stderrBuf.filter(l => /Error|Exception/i.test(l)).slice(-5).join('\n')
-      opts.onCrash?.(`Minecraft a planté (code ${code})${errors ? `:\n${errors}` : ''}\nLogs : ${logPath}`)
+      ;(async () => {
+        // Lire les logs Minecraft pour avoir la vraie erreur
+        let detail = ''
+        try {
+          const mcLog = await readFile(mcLogPath, 'utf-8')
+          const errorLines = mcLog.split('\n')
+            .filter(l => /\[FATAL\]|\[ERROR\]|Exception|Error:/i.test(l))
+            .slice(-8)
+          if (errorLines.length) detail = errorLines.join('\n')
+        } catch {}
+
+        // Fallback sur stderr
+        if (!detail) {
+          detail = stderrBuf.filter(l => /Error|Exception/i.test(l)).slice(-5).join('\n')
+        }
+
+        opts.onCrash?.([
+          `Minecraft a planté (code ${code})`,
+          detail || '(aucun détail — voir les logs)',
+          `📋 ${mcLogPath}`,
+        ].join('\n'))
+      })()
     }
   })
 }

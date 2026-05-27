@@ -68,7 +68,7 @@ export const useLauncherStore = create<LauncherState>((set) => ({
   ],
   currentPage: 'home',
   settings: {
-    javaPath: 'C:\\Program Files\\Java\\jdk-21\\bin\\java.exe',
+    javaPath: 'C:\\Program Files\\Java\\jdk-21\\bin\\javaw.exe',
     ramGb: 4,
     resolution: '1920x1080',
     closeLauncherOnPlay: true,
