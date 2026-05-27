@@ -146,6 +146,7 @@ export default function BottomBar() {
       accessToken: user.accessToken,
       javaPath:    settings.javaPath,
       ramGb:       settings.ramGb,
+      resolution:  settings.resolution,
     })
 
     setLaunching(false)

@@ -81,7 +81,7 @@ ipcMain.handle('auth:logout', async () => {
 
 ipcMain.handle('game:launch', async (_, opts: {
   username: string; uuid: string; accessToken: string
-  javaPath: string; ramGb: number
+  javaPath: string; ramGb: number; resolution?: string
 }) => {
   try {
     await launchMinecraft({

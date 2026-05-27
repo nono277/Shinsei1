@@ -20,6 +20,7 @@ export interface LaunchOptions {
   accessToken: string
   javaPath:    string
   ramGb:       number
+  resolution?: string
   onProgress:  (label: string, percent: number) => void
   onLog:       (line: string) => void
   onCrash?:    (error: string) => void
@@ -512,8 +513,10 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   }
 
   // ── Agent Shinsei Boot Screen (optionnel) ──
-  const agentJar  = join(MC_DIR, 'shinsei-boot.jar')
-  const agentArgs = await fileExists(agentJar) ? [`-javaagent:${agentJar}`] : []
+  const agentJar     = join(MC_DIR, 'shinsei-boot.jar')
+  const loadingPng   = join(MC_DIR, 'config', 'fancymenu', 'assets', 'loading.png').replace(/\\/g, '/')
+  const agentArgStr  = `${loadingPng}|${opts.resolution ?? '1280x720'}|${opts.username}|${MC_VERSION}`
+  const agentArgs    = await fileExists(agentJar) ? [`-javaagent:${agentJar}=${agentArgStr}`] : []
 
   // ── Arguments JVM ──
   const jvmArgs: string[] = [
