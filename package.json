@@ -1,0 +1,10 @@
+{
+  "name": "shinsei-launcher",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --filter launcher dev",
+    "build": "pnpm --filter launcher build",
+    "electron": "pnpm --filter launcher electron"
+  }
+}
