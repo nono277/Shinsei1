@@ -1,12 +1,12 @@
 import { spawn, exec, execFile }  from 'child_process'
 import { join, delimiter }         from 'path'
-import { mkdir, readFile, access, writeFile, copyFile, unlink } from 'fs/promises'
+import { mkdir, readFile, access, writeFile, copyFile, unlink, stat, readdir } from 'fs/promises'
 import { createWriteStream }       from 'fs'
 import { promisify }               from 'util'
 import * as https                  from 'https'
 import * as http                   from 'http'
 import * as os                     from 'os'
-import { app }                     from 'electron'
+import { app, screen as electronScreen } from 'electron'
 
 const execAsync = promisify(exec)
 
@@ -48,6 +48,16 @@ const GAME_DIR     = MC_DIR
 
 async function ensureDir(dir: string) {
   await mkdir(dir, { recursive: true })
+}
+
+async function copyDir(src: string, dest: string): Promise<void> {
+  await ensureDir(dest)
+  for (const entry of await readdir(src, { withFileTypes: true })) {
+    const s = join(src, entry.name)
+    const d = join(dest, entry.name)
+    if (entry.isDirectory()) await copyDir(s, d)
+    else await copyFile(s, d)
+  }
 }
 
 async function fileExists(p: string): Promise<boolean> {
@@ -169,9 +179,24 @@ function forgeId(forgeVer: string): string {
 }
 
 async function isForgeInstalled(forgeVer: string): Promise<boolean> {
-  const id = forgeId(forgeVer)
-  return (await fileExists(join(VERSIONS_DIR, id, `${id}.json`)))
-      && (await fileExists(join(VERSIONS_DIR, MC_VERSION, `${MC_VERSION}.jar`)))
+  const id      = forgeId(forgeVer)
+  const jsonPath = join(VERSIONS_DIR, id, `${id}.json`)
+  if (!await fileExists(jsonPath)) return false
+  if (!await fileExists(join(VERSIONS_DIR, MC_VERSION, `${MC_VERSION}.jar`))) return false
+
+  // Vérifier que les libs créées localement par le Forge installer existent bien
+  // (celles sans URL dans le profil ne peuvent pas être re-téléchargées)
+  try {
+    const profile = JSON.parse(await readFile(jsonPath, 'utf-8'))
+    for (const lib of (profile.libraries ?? []) as any[]) {
+      const artifact = lib.downloads?.artifact
+      if (!artifact?.path) continue
+      if (artifact.url && (artifact.url as string).trim().length > 0) continue
+      if (!await fileExists(join(LIBS_DIR, artifact.path))) return false
+    }
+  } catch { return false }
+
+  return true
 }
 
 async function runForgeInstaller(
@@ -224,11 +249,17 @@ async function runForgeInstaller(
 
     const timeout = setTimeout(() => {
       proc.kill()
-      reject(new Error("Installation de Forge expirée (5 min). Réessaie."))
-    }, 5 * 60 * 1000)
+      reject(new Error("Installation de Forge expirée (15 min). Réessaie sur une meilleure connexion."))
+    }, 15 * 60 * 1000)
 
     const allLines: string[] = []
     let pct = 60
+    // Heartbeat : empêche la barre de progresser de se bloquer quand l'installer
+    // télécharge silencieusement sans émettre de logs
+    const heartbeat = setInterval(() =>
+      onProgress('Installation Forge en cours (peut prendre plusieurs minutes)…', Math.min(pct, 89)),
+    6000)
+
     const pushLine = (d: Buffer) => {
       const line = d.toString('utf-8').trim()
       if (!line) return
@@ -240,6 +271,7 @@ async function runForgeInstaller(
     proc.stderr?.on('data', pushLine)
 
     proc.on('error', err => {
+      clearInterval(heartbeat)
       clearTimeout(timeout)
       reject(new Error(
         err.message.includes('ENOENT')
@@ -248,6 +280,7 @@ async function runForgeInstaller(
       ))
     })
     proc.on('close', code => {
+      clearInterval(heartbeat)
       clearTimeout(timeout)
       if (code === 0) { resolve(); return }
       const detail = allLines
@@ -481,7 +514,7 @@ I:early_loading_logo_position_offset_x = '0';`)
 // ── Compilation du Java agent (une seule fois) ────────────────────────────────
 
 const AGENT_VERSION = '8' // incrémenter à chaque modification de ShinseiBootAgent.java
-const MOD_VERSION   = '10' // incrémenter à chaque modification de ShinseiMenuMod.java
+const MOD_VERSION   = '35' // incrémenter à chaque modification de ShinseiMenuMod.java
 
 async function buildBootAgent(javaExe: string): Promise<void> {
   const agentJar  = join(MC_DIR, 'shinsei-boot.jar')
@@ -567,6 +600,10 @@ async function buildMenuMod(
     const packMeta = join(app.getAppPath(), 'resources', 'shinsei-mod', 'pack.mcmeta')
     if (await fileExists(packMeta)) await copyFile(packMeta, join(classDir, 'pack.mcmeta'))
 
+    // Copy mod assets (sounds.json, sound files, etc.) into the JAR
+    const assetsDir = join(app.getAppPath(), 'resources', 'shinsei-mod', 'assets')
+    if (await fileExists(assetsDir)) await copyDir(assetsDir, join(classDir, 'assets'))
+
     // execFile bypasse cmd.exe (limite 8K) → pas de problème de longueur de ligne
     const cp = classpath.join(delimiter)
     const { stderr: javacErr } = await execFileAsync(javac, [
@@ -645,8 +682,8 @@ if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) {
   }
   if (!hidden) return
 
-  // Phase 2 — attendre le signal du Java agent (flag file), puis révéler la fenêtre
-  const showCmd = makeCmd(9, false)
+  // Phase 2 — attendre le signal du Java agent (flag file), puis révéler en maximisé
+  const showCmd = makeCmd(3, false) // 3 = SW_SHOWMAXIMIZED
   for (let i = 0; i < 360; i++) {
     await new Promise<void>(r => setTimeout(r, 1000))
     if (await fileExists(flagPath)) {
@@ -688,7 +725,17 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   // ── Client JAR vanilla ──
   const clientJar = join(VERSIONS_DIR, MC_VERSION, `${MC_VERSION}.jar`)
   await ensureDir(join(VERSIONS_DIR, MC_VERSION))
-  if (!await fileExists(clientJar)) {
+  let needsClientDl = !await fileExists(clientJar)
+  if (!needsClientDl) {
+    try {
+      const { size } = await stat(clientJar)
+      if (size !== vanillaMeta.downloads.client.size) {
+        onLog(`⚠️ client jar invalide (taille ${size} ≠ ${vanillaMeta.downloads.client.size}), re-téléchargement…`)
+        needsClientDl = true
+      }
+    } catch { needsClientDl = true }
+  }
+  if (needsClientDl) {
     onProgress('Téléchargement du client 1.21.1…', 5)
     await downloadFile(
       vanillaMeta.downloads.client.url,
@@ -712,6 +759,12 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   const forgeVer = await getForgeLatestVersion()
 
   if (!await isForgeInstalled(forgeVer)) {
+    // Si le JSON existe mais les libs locales manquent → installation précédente incomplète
+    const forgeJson = join(VERSIONS_DIR, forgeId(forgeVer), `${forgeId(forgeVer)}.json`)
+    if (await fileExists(forgeJson)) {
+      onLog('⚠️ Installation Forge incomplète détectée (fichiers manquants) — réinstallation…')
+      await unlink(forgeJson).catch(() => {})
+    }
     await runForgeInstaller(java, forgeVer, onProgress, onLog)
   }
 
@@ -796,7 +849,10 @@ export async function launchMinecraft(opts: LaunchOptions): Promise<void> {
   ]
 
   // ── Arguments du jeu ──
+  const { width: screenW, height: screenH } = electronScreen.getPrimaryDisplay().bounds
   const gameArgs: string[] = [
+    '--width',  String(screenW),
+    '--height', String(screenH),
     ...parseArgs(vanillaMeta.arguments?.game ?? []),
     ...parseArgs(forgeProfile.arguments?.game ?? []),
   ]

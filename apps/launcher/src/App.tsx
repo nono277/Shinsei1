@@ -10,6 +10,7 @@ import ProfilePage from './pages/ProfilePage'
 import RankingPage from './pages/RankingPage'
 import ShopPage from './pages/ShopPage'
 import SettingsPage from './pages/SettingsPage'
+import SocialPage from './pages/SocialPage'
 import LoginPage from './pages/LoginPage'
 import { useLauncherStore } from './store/launcherStore'
 import { Faction } from '@shinsei/shared'
@@ -104,6 +105,7 @@ export default function App() {
                     {currentPage === 'ranking'  && <RankingPage />}
                     {currentPage === 'shop'     && <ShopPage />}
                     {currentPage === 'settings' && <SettingsPage />}
+                    {currentPage === 'social'   && <SocialPage />}
                   </motion.div>
                 </AnimatePresence>
               </div>

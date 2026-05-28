@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { Class, Faction } from '@shinsei/shared'
 
-export type Page = 'home' | 'profile' | 'ranking' | 'shop' | 'settings'
+export type Page = 'home' | 'profile' | 'ranking' | 'shop' | 'settings' | 'social'
 
 interface NewsItem {
   id: string

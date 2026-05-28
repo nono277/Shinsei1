@@ -57,15 +57,14 @@ export default function ClassSelector() {
               className="flex-1 flex flex-col items-center gap-1.5 py-3 px-2 rounded-lg border-2 relative overflow-hidden"
               style={{ backgroundColor: isSelected ? 'rgba(124,58,237,0.1)' : '#1a1a2e' }}
             >
-              {isSelected && (
-                <motion.div
-                  layoutId="classGlow"
-                  className="absolute inset-0 rounded-lg pointer-events-none"
-                  style={{
-                    background: `radial-gradient(ellipse at 50% 110%, ${cls.color}20, transparent 65%)`,
-                  }}
-                />
-              )}
+              <motion.div
+                animate={{ opacity: isSelected ? 1 : 0 }}
+                transition={{ duration: 0.2 }}
+                className="absolute inset-0 rounded-lg pointer-events-none"
+                style={{
+                  background: `radial-gradient(ellipse at 50% 110%, ${cls.color}20, transparent 65%)`,
+                }}
+              />
 
               <div
                 className="relative z-10 rounded-full overflow-hidden flex-shrink-0"

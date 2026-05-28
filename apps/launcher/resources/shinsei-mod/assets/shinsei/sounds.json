@@ -1,0 +1,10 @@
+{
+  "menu.music": {
+    "sounds": [
+      {
+        "name": "shinsei:menu_music",
+        "stream": true
+      }
+    ]
+  }
+}

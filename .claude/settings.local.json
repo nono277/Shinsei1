@@ -16,7 +16,21 @@
       "PowerShell(Get-Content *)",
       "PowerShell($jarPath = \"$env:APPDATA\\\\.shinsei\\\\mods\\\\shinsei-menu.jar\"; Add-Type -Assembly System.IO.Compression.FileSystem; $z = [System.IO.Compression.ZipFile]::OpenRead\\($jarPath\\); $z.Entries | ForEach-Object { $_.FullName }; $z.Dispose\\(\\))",
       "PowerShell(Test-Path *)",
-      "PowerShell(Get-Item *)"
+      "PowerShell(Get-Item *)",
+      "Bash(findstr /n \"class ShinseiButton\\\\|class ShinseiTitleScreen\\\\|public class ShinseiMenuMod\\\\|@Override\\\\|renderWidget\\\\|renderText\\\\|renderBackground\\\\|renderParticles\\\\|renderVignette\\\\|renderRightPanel\\\\|protected void init\\\\|titleScale\\\\|rightPaneX\\\\|btnGap\\\\|pressedAt\\\\|MOD_VERSION\" \"C:\\\\Users\\\\sella\\\\Desktop\\\\project serveur minecraft\\\\luncher SHINSEI\\\\shinsei-launcher\\\\apps\\\\launcher\\\\resources\\\\shinsei-mod\\\\ShinseiMenuMod.java\")",
+      "Bash(grep -E \"\\\\.\\(json|glsl|fsh|vsh\\)$\")",
+      "Bash(cat)",
+      "Read(//tmp/**)",
+      "Bash(powershell *)",
+      "Bash(rm \"C:/Users/sella/AppData/Roaming/.shinsei/shinsei-menu.ver\")",
+      "Bash(rm \"C:/Users/sella/AppData/Roaming/.shinsei/shinsei-menu.jar\")",
+      "Bash(rm \"C:/Users/sella/AppData/Roaming/.shinsei/mods/shinsei-menu.jar\")",
+      "Bash(\"C:/Program Files/Java/jdk-22/bin/jar\" tf \"versions/1.21.1/1.21.1.jar\")",
+      "Bash(\"C:/Program Files/Java/jdk-22/bin/jar\" tf \"C:/Users/sella/AppData/Roaming/.shinsei/libraries/net/minecraftforge/forge/1.21.1-52.1.14/forge-1.21.1-52.1.14-client.jar\")",
+      "Bash(\"C:/Program Files/Java/jdk-22/bin/javap\" -classpath \"C:/Users/sella/AppData/Roaming/.shinsei/libraries/net/minecraftforge/forge/1.21.1-52.1.14/forge-1.21.1-52.1.14-client.jar\" \"net.minecraft.client.gui.screens.options.VideoSettingsScreen\")",
+      "Bash(\"C:/Program Files/Java/jdk-22/bin/javap\" -classpath \"C:/Users/sella/AppData/Roaming/.shinsei/libraries/net/minecraftforge/forge/1.21.1-52.1.14/forge-1.21.1-52.1.14-client.jar\" \"net.minecraft.client.gui.screens.options.LanguageSelectScreen\")",
+      "PowerShell(ffmpeg *)",
+      "PowerShell(winget *)"
     ]
   }
 }
